@@ -1,0 +1,24 @@
+{
+  "name": "factory-pos",
+  "version": "1.0.0",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\" \"npm run electron:dev\"",
+    "backend:dev": "cd backend && npm run start:dev",
+    "backend:build": "cd backend && npm run build",
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
+    "electron:dev": "wait-on http://localhost:3001 && wait-on http://localhost:5173 && electron .",
+    "build": "npm run backend:build && npm run frontend:build && electron-builder"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "concurrently": "^9.2.1",
+    "electron": "^41.2.1",
+    "electron-builder": "^26.8.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3",
+    "wait-on": "^9.0.5"
+  }
+}
