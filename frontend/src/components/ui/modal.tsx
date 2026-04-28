@@ -13,15 +13,17 @@ export function Modal({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-md rounded-lg border border-slate-700 bg-slate-900 p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="font-semibold">{title}</h3>
-          <Button variant="secondary" onClick={onClose}>
-            Close
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-lg industrial-card rounded-xl shadow-industrial-lg">
+        <div className="px-6 pt-6 pb-4 flex items-center justify-between border-b border-industrial-200">
+          <h3 className="text-xl font-bold text-industrial-900">{title}</h3>
+          <Button variant="outline" size="sm" onClick={onClose}>
+            ✕
           </Button>
         </div>
-        {children}
+        <div className="px-6 py-6">
+          {children}
+        </div>
       </div>
     </div>
   );

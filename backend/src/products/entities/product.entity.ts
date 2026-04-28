@@ -20,6 +20,8 @@ export enum ProductUnit {
   PIECE = 'piece',
   BAG = 'bag',
   BUNDLE = 'bundle',
+  MAUND = 'maund',
+  TON = 'ton',
 }
 
 @Entity('products')

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SaleItem } from '../sales/entities/sale-item.entity';
@@ -38,6 +38,15 @@ export class InventoryService {
 
   history() {
     return this.inventoryRepo.find({ order: { date: 'DESC' } });
+  }
+
+  async delete(id: number) {
+    const inventory = await this.inventoryRepo.findOne({ where: { id } });
+    if (!inventory) {
+      throw new NotFoundException('Inventory entry not found');
+    }
+    await this.inventoryRepo.remove(inventory);
+    return { message: 'Inventory entry deleted successfully' };
   }
 
   async stockSummary() {

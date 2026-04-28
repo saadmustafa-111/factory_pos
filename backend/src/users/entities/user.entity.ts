@@ -22,6 +22,9 @@ export class User {
   @Column({ default: 'admin' })
   role: string;
 
+  @Column({ nullable: true, type: 'text' })
+  recovery_pin_hash: string | undefined;
+
   @CreateDateColumn()
   created_at: Date;
 }

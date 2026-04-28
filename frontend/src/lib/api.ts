@@ -1,14 +1,16 @@
 import axios from 'axios';
 
 export const API_BASE_URL = 'http://localhost:3001';
-let authToken = '';
+let authToken = localStorage.getItem('factory_pos_token') || '';
 
 export const setAuthToken = (token: string) => {
   authToken = token;
+  localStorage.setItem('factory_pos_token', token);
 };
 
 export const clearAuthToken = () => {
   authToken = '';
+  localStorage.removeItem('factory_pos_token');
 };
 
 export const getAuthToken = () => authToken;

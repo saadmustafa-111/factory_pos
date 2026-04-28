@@ -1,5 +1,21 @@
-import { contextBridge } from 'electron';
+import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('factoryPos', {
-  appName: 'Factory POS',
+  appName: 'Steel & Cement POS',
+
+  // Opens native file dialog; returns Electron.OpenDialogReturnValue
+  showOpenDialog: (options: Electron.OpenDialogOptions) =>
+    ipcRenderer.invoke('show-open-dialog', options),
+
+  // Opens a URL in the system default browser (for OAuth)
+  openExternal: (url: string) =>
+    ipcRenderer.invoke('open-external', url),
+
+  // Register a listener for the cloud-backup trigger sent by main process
+  onTriggerCloudBackup: (callback: () => void) => {
+    ipcRenderer.on('trigger-cloud-backup', callback);
+    // Return a cleanup function
+    return () => ipcRenderer.removeListener('trigger-cloud-backup', callback);
+  },
 });
+

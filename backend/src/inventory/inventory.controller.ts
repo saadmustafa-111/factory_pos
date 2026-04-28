@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { InventoryService } from './inventory.service';
@@ -21,5 +21,10 @@ export class InventoryController {
   @Get('history')
   history() {
     return this.inventoryService.history();
+  }
+
+  @Delete(':id')
+  delete(@Param('id') id: string) {
+    return this.inventoryService.delete(Number(id));
   }
 }

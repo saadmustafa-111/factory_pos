@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Button } from '../components/ui/button';
+import { Card } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Modal } from '../components/ui/modal';
 import { api } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { localizeApiText } from '../lib/localize';
@@ -41,92 +45,109 @@ export default function CustomerLedger() {
     [ledger],
   );
 
-  const sc: any = { paid: 'bg-green-100 text-green-700', partial: 'bg-amber-100 text-amber-700', pending: 'bg-slate-100 text-slate-500', overdue: 'bg-red-100 text-red-700' };
+  const sc: any = { paid: 'bg-green-100 text-green-800 border border-green-200', partial: 'bg-accent-secondary/10 text-accent-secondary border border-accent-secondary/20', pending: 'bg-industrial-100 text-industrial-700 border border-industrial-300', overdue: 'bg-accent-danger/10 text-accent-danger border border-accent-danger/20' };
   const filterLabels: Record<Filter, string> = { all: t.allCustomers, 'has-balance': t.withBalance, overdue: t.overdueOnly };
 
   return (
-    <div className={`space-y-6 ${isUrdu ? 'font-urdu' : ''}`}>
-      <div className="flex gap-2 flex-wrap">
+    <div className={`space-y-8 ${isUrdu ? 'font-urdu' : ''}`}>
+      <div className="flex gap-3 flex-wrap">
         {(['all', 'has-balance', 'overdue'] as Filter[]).map((f) => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${filter === f ? 'bg-[#2563EB] text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+          <Button
+            key={f}
+            onClick={() => setFilter(f)}
+            variant={filter === f ? 'default' : 'outline'}
+            className="font-semibold"
+          >
             {filterLabels[f]}
-          </button>
+          </Button>
         ))}
       </div>
 
       {topBalances.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {topBalances.map((row: any) => (
-            <div key={row.customer_id} className="rounded-xl bg-white p-5 shadow-sm border border-slate-100">
-              <p className="font-semibold text-slate-800">{localizeApiText(row.customer_name, isUrdu)}</p>
-              <div className="mt-3 space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">{t.totalOwed}</span><span>{fmtCurrency(row.totalOwed)}</span>
+            <Card key={row.customer_id} className="p-6">
+              <h3 className="text-lg font-bold text-industrial-900 mb-4">{localizeApiText(row.customer_name, isUrdu)}</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-semibold text-industrial-600">{t.totalOwed}</span>
+                  <span className="text-sm font-bold text-industrial-900">{fmtCurrency(row.totalOwed)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">{t.totalPaid}</span><span className="text-green-600">{fmtCurrency(row.totalPaid)}</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-semibold text-industrial-600">{t.totalPaid}</span>
+                  <span className="text-sm font-bold text-green-600">{fmtCurrency(row.totalPaid)}</span>
                 </div>
-                <div className="flex justify-between border-t border-slate-100 pt-1">
-                  <span className="font-medium">{t.balance}</span><span className="font-bold text-red-600">{fmtCurrency(row.balance)}</span>
+                <div className="flex justify-between items-center border-t-2 border-industrial-200 pt-3">
+                  <span className="text-sm font-bold text-industrial-700">{t.balance}</span>
+                  <span className="text-lg font-bold text-accent-danger">{fmtCurrency(row.balance)}</span>
                 </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
 
-      <div className="rounded-xl bg-white shadow-sm border border-slate-100">
-        <div className="border-b border-slate-100 px-6 py-4">
-          <h2 className="font-semibold text-slate-800">{t.customerLedgerTitle}</h2>
+      <Card>
+        <div className="border-b border-industrial-200 px-6 py-5 bg-industrial-50">
+          <h2 className="text-xl font-bold text-industrial-900">{t.customerLedgerTitle}</h2>
         </div>
-        <div className="divide-y divide-slate-50">
+        <div className="divide-y divide-industrial-200">
           {sales.length === 0 ? (
-            <p className="px-6 py-4 text-sm text-slate-400">{t.noData}</p>
+            <p className="px-6 py-8 text-center text-industrial-500 font-medium">{t.noData}</p>
           ) : sales.map((sale: any) => (
-            <div key={sale.id} className="flex items-center justify-between px-6 py-3 text-sm gap-3">
+            <div key={sale.id} className="flex items-center justify-between px-6 py-4 gap-4 hover:bg-industrial-50 transition-colors">
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-slate-800">{localizeApiText(sale.customer?.name || sale.customer_name || '-', isUrdu)}</p>
-                <p className="text-xs text-slate-400">
+                <p className="font-bold text-industrial-900 text-lg">{localizeApiText(sale.customer?.name || sale.customer_name || '-', isUrdu)}</p>
+                <p className="text-sm text-industrial-500 mt-1">
                   {new Date(sale.date).toLocaleDateString(locale)}
-                  {sale.due_date ? ` \u00b7 ${t.dueDate}: ${new Date(sale.due_date).toLocaleDateString(locale)}` : ''}
+                  {sale.due_date ? ` • ${t.dueDate}: ${new Date(sale.due_date).toLocaleDateString(locale)}` : ''}
                 </p>
               </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="flex items-center gap-4 flex-shrink-0">
                 <div className="text-right">
-                  <p className="text-xs text-slate-400">{t.balance}</p>
-                  <p className={`font-semibold ${sale.pending_amount > 0 ? 'text-red-600' : 'text-green-600'}`}>{fmtCurrency(sale.pending_amount)}</p>
+                  <p className="text-sm font-semibold text-industrial-600">{t.balance}</p>
+                  <p className={`text-lg font-bold ${sale.pending_amount > 0 ? 'text-accent-danger' : 'text-green-600'}`}>{fmtCurrency(sale.pending_amount)}</p>
                 </div>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${sc[sale.is_overdue ? 'overdue' : sale.status]}`}>
+                <span className={`inline-block text-xs font-bold uppercase tracking-wide px-3 py-1.5 rounded-full ${sc[sale.is_overdue ? 'overdue' : sale.status]}`}>
                   {sale.is_overdue ? t.overdue : sale.status === 'paid' ? t.paid : sale.status === 'partial' ? t.partial : t.pending}
                 </span>
                 {sale.pending_amount > 0 && (
-                  <button onClick={() => { setPaymentModal(sale); setAmount(String(sale.pending_amount)); }}
-                    className="rounded-lg bg-[#2563EB] px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 whitespace-nowrap">
+                  <Button onClick={() => { setPaymentModal(sale); setAmount(String(sale.pending_amount)); }} size="sm">
                     {t.collectPayment}
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
       {paymentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setPaymentModal(null)}>
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="mb-1 text-lg font-bold text-slate-800">{t.collectPayment}</h3>
-            <p className="mb-4 text-sm text-slate-500">{localizeApiText(paymentModal.customer?.name || paymentModal.customer_name, isUrdu)} \u00b7 {t.balance}: {fmtCurrency(paymentModal.pending_amount)}</p>
-            <label className="mb-1 block text-xs font-medium text-slate-500">{t.collectAmount}</label>
-            <input type="number" autoFocus
-              className="mb-4 h-12 w-full rounded-lg border border-slate-200 px-4 text-lg font-semibold focus:border-[#2563EB] focus:outline-none"
-              value={amount} onChange={(e) => setAmount(e.target.value)} />
-            <div className="flex gap-3">
-              <button onClick={submitPayment} className="flex-1 rounded-lg bg-[#2563EB] py-2.5 text-sm font-semibold text-white hover:bg-blue-700">{t.collect}</button>
-              <button onClick={() => setPaymentModal(null)} className="flex-1 rounded-lg border border-slate-200 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50">{t.cancel}</button>
+        <Modal open={!!paymentModal} title={t.collectPayment} onClose={() => setPaymentModal(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-industrial-600">
+              {localizeApiText(paymentModal.customer?.name || paymentModal.customer_name, isUrdu)} • {t.balance}: <span className="font-bold text-accent-danger">{fmtCurrency(paymentModal.pending_amount)}</span>
+            </p>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-industrial-700">{t.collectAmount}</label>
+              <Input
+                type="number"
+                autoFocus
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="text-lg font-bold"
+              />
+            </div>
+            <div className="flex gap-3 pt-4">
+              <Button onClick={submitPayment} className="flex-1">
+                {t.collect}
+              </Button>
+              <Button onClick={() => setPaymentModal(null)} variant="outline" className="flex-1">
+                {t.cancel}
+              </Button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

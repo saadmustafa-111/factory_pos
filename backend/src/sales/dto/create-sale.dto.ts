@@ -37,6 +37,10 @@ export class CreateSaleDto {
   @IsString()
   customer_phone?: string;
 
+  @IsOptional()
+  @IsString()
+  customer_address?: string;
+
   @IsDateString()
   date: string;
 

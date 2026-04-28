@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -19,7 +20,25 @@ export class ProductsController {
 
   @Get('products')
   getProducts() {
-    return this.productsService.findAllActive();
+    return this.productsService.findAll();
+  }
+
+  @Post('products')
+  addProduct(@Body() body: { name: string; category: string; type: string; unit: string }) {
+    return this.productsService.addProduct(body);
+  }
+
+  @Patch('products/:id/unit')
+  updateUnit(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { unit: string },
+  ) {
+    return this.productsService.updateProductUnit(id, body.unit);
+  }
+
+  @Delete('products/:id')
+  removeProduct(@Param('id', ParseIntPipe) id: number) {
+    return this.productsService.removeProduct(id);
   }
 
   @Get('cement-brands')

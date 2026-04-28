@@ -28,14 +28,25 @@ export class SeedService implements OnApplicationBootstrap {
     const userCount = await this.usersRepo.count();
     if (userCount === 0) {
       const password_hash = await bcrypt.hash('factory@2024', 10);
+      const recovery_pin_hash = await bcrypt.hash('1234', 10);
       await this.usersRepo.save(
         this.usersRepo.create({
           name: 'Administrator',
           username: 'admin',
           password_hash,
           role: 'admin',
+          recovery_pin_hash,
         }),
       );
+    } else {
+      // Ensure all existing users have a default recovery PIN if not set
+      const usersWithoutPin = await this.usersRepo.find();
+      for (const u of usersWithoutPin) {
+        if (!u.recovery_pin_hash) {
+          u.recovery_pin_hash = await bcrypt.hash('1234', 10);
+          await this.usersRepo.save(u);
+        }
+      }
     }
 
     const productCount = await this.productsRepo.count();
@@ -85,14 +96,14 @@ export class SeedService implements OnApplicationBootstrap {
           name: 'Sariya Thin',
           category: ProductCategory.SARIYA,
           type: 'thin',
-          unit: ProductUnit.KG,
+          unit: ProductUnit.MAUND,
           is_active: true,
         }),
         this.productsRepo.create({
           name: 'Sariya Thick',
           category: ProductCategory.SARIYA,
           type: 'thick',
-          unit: ProductUnit.KG,
+          unit: ProductUnit.MAUND,
           is_active: true,
         }),
         this.productsRepo.create({

@@ -21,6 +21,37 @@ export class ProductsService {
     });
   }
 
+  findAll() {
+    return this.productsRepo.find({ order: { id: 'ASC' } });
+  }
+
+  async addProduct(body: { name: string; category: string; type: string; unit: string }) {
+    return this.productsRepo.save(
+      this.productsRepo.create({
+        name: body.name,
+        category: body.category as any,
+        type: body.type || 'standard',
+        unit: body.unit as any,
+        is_active: true,
+      }),
+    );
+  }
+
+  async updateProductUnit(id: number, unit: string) {
+    const product = await this.productsRepo.findOne({ where: { id } });
+    if (!product) throw new NotFoundException('Product not found');
+    product.unit = unit as any;
+    return this.productsRepo.save(product);
+  }
+
+  async removeProduct(id: number) {
+    const product = await this.productsRepo.findOne({ where: { id } });
+    if (!product) throw new NotFoundException('Product not found');
+    product.is_active = false;
+    await this.productsRepo.save(product);
+    return { message: 'Product removed' };
+  }
+
   getCementBrands() {
     return this.brandsRepo.find({
       where: { is_active: true },

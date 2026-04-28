@@ -2,17 +2,26 @@ import * as React from 'react';
 import { cn } from '../../lib/utils';
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: 'default' | 'secondary' | 'destructive';
+  variant?: 'default' | 'secondary' | 'destructive' | 'outline';
+  size?: 'sm' | 'md' | 'lg';
 };
 
-export function Button({ className, variant = 'default', ...props }: ButtonProps) {
+export function Button({ className, variant = 'default', size = 'md', ...props }: ButtonProps) {
+  const sizeClasses = {
+    sm: 'h-8 px-3 text-xs',
+    md: 'h-10 px-4 text-sm',
+    lg: 'h-12 px-6 text-base',
+  };
+
   return (
     <button
       className={cn(
-        'inline-flex h-10 items-center justify-center rounded-md px-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-        variant === 'default' && 'bg-[#2563EB] text-white hover:bg-blue-700',
-        variant === 'secondary' && 'bg-slate-200 text-slate-700 hover:bg-slate-300',
-        variant === 'destructive' && 'bg-[#DC2626] text-white hover:bg-red-700',
+        'inline-flex items-center justify-center rounded-lg font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2',
+        sizeClasses[size],
+        variant === 'default' && 'industrial-button focus:ring-accent-primary/50',
+        variant === 'secondary' && 'industrial-button-secondary focus:ring-industrial-500/50',
+        variant === 'destructive' && 'bg-accent-danger text-white hover:bg-accent-danger/90 shadow-industrial focus:ring-accent-danger/50',
+        variant === 'outline' && 'border-2 border-industrial-300 bg-transparent text-industrial-700 hover:bg-industrial-50 focus:ring-industrial-500/50',
         className,
       )}
       {...props}

@@ -41,9 +41,20 @@ export class SalesService {
   }
 
   async create(payload: CreateSaleDto) {
-    const customer = payload.customer_id
+    let customer = payload.customer_id
       ? await this.customersRepo.findOne({ where: { id: payload.customer_id } })
       : null;
+
+    // Auto-create a new Customer record when name is provided
+    if (!customer && payload.customer_name) {
+      customer = await this.customersRepo.save(
+        this.customersRepo.create({
+          name: payload.customer_name,
+          phone: payload.customer_phone,
+          address: payload.customer_address,
+        }),
+      );
+    }
 
     const items = await Promise.all(
       payload.items.map(async (item) => ({
@@ -75,8 +86,8 @@ export class SalesService {
 
     const sale = this.salesRepo.create({
       customer_id: customer?.id,
-      customer_name: payload.customer_name,
-      customer_phone: payload.customer_phone,
+      customer_name: customer?.name ?? payload.customer_name,
+      customer_phone: customer?.phone ?? payload.customer_phone,
       date: new Date(payload.date),
       due_date: dueDate,
       credit_days: payload.credit_days,
@@ -91,17 +102,8 @@ export class SalesService {
 
     const savedSale = await this.salesRepo.save(sale);
 
-    if (paidAmount > 0) {
-      await this.paymentsRepo.save(
-        this.paymentsRepo.create({
-          sale_id: savedSale.id,
-          customer_id: customer?.id,
-          amount_paid: paidAmount,
-          payment_date: new Date(payload.date),
-          notes: 'Initial payment',
-        }),
-      );
-    }
+    // Note: Initial sale payment does not create a payment record.
+    // Use "Record Payment" to track payment collections.
 
     return this.findOne(savedSale.id);
   }
@@ -127,7 +129,7 @@ export class SalesService {
   async findOne(id: number) {
     const sale = await this.salesRepo.findOne({
       where: { id },
-      relations: ['payments'],
+      relations: ['payments', 'items', 'items.product', 'items.cement_brand', 'customer'],
     });
     if (!sale) {
       throw new NotFoundException('Sale not found');

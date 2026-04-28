@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import { TrendingUp, DollarSign, AlertCircle, Building2 } from 'lucide-react';
+import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Table } from '../components/ui/table';
@@ -50,91 +52,148 @@ export default function Reports() {
     .slice(0, 5);
 
   return (
-    <div className={`space-y-6 ${isUrdu ? 'font-urdu' : ''}`}>
-      <Card className="grid gap-3 md:grid-cols-3">
-        <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        <button
-          onClick={() => load(from, to)}
-          className="h-10 rounded-lg bg-[#2563EB] px-4 text-sm font-semibold text-white hover:bg-blue-700"
-        >
-          {t.applyFilter}
-        </button>
+    <div className={`space-y-8 ${isUrdu ? 'font-urdu' : ''}`}>
+      <Card className="p-6">
+        <div className="grid gap-4 md:grid-cols-3 items-end">
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-industrial-700">{t.fromDate}</label>
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-industrial-700">{t.toDate}</label>
+            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </div>
+          <Button onClick={() => load(from, to)} className="h-11">
+            {t.applyFilter}
+          </Button>
+        </div>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>{t.totalSales}: {fmtCurrency(totalSales)}</Card>
-        <Card>{t.totalProfit}: {fmtCurrency(totalProfit)}</Card>
-        <Card>{t.customerReceivable}: {fmtCurrency(dashboard.customerPending)}</Card>
-        <Card>{t.millPayable}: {fmtCurrency(dashboard.millDues)}</Card>
+      <div className="grid gap-6 md:grid-cols-4">
+        <div className="industrial-card p-6 rounded-xl">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-sm" style={{ background: '#10b98120' }}>
+              <TrendingUp className="h-6 w-6" style={{ color: '#10b981' }} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-industrial-600">{t.totalSales}</p>
+              <p className="mt-1 text-2xl font-bold text-industrial-900">{fmtCurrency(totalSales)}</p>
+            </div>
+          </div>
+        </div>
+        <div className="industrial-card p-6 rounded-xl">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-sm" style={{ background: '#16a34a20' }}>
+              <DollarSign className="h-6 w-6" style={{ color: '#16a34a' }} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-industrial-600">{t.totalProfit}</p>
+              <p className="mt-1 text-2xl font-bold text-industrial-900">{fmtCurrency(totalProfit)}</p>
+            </div>
+          </div>
+        </div>
+        <div className="industrial-card p-6 rounded-xl">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-sm" style={{ background: '#ef444420' }}>
+              <AlertCircle className="h-6 w-6" style={{ color: '#ef4444' }} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-industrial-600">{t.customerReceivable}</p>
+              <p className="mt-1 text-2xl font-bold text-industrial-900">{fmtCurrency(dashboard.customerPending)}</p>
+            </div>
+          </div>
+        </div>
+        <div className="industrial-card p-6 rounded-xl">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-sm" style={{ background: '#f59e0b20' }}>
+              <Building2 className="h-6 w-6" style={{ color: '#f59e0b' }} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-industrial-600">{t.millPayable}</p>
+              <p className="mt-1 text-2xl font-bold text-industrial-900">{fmtCurrency(dashboard.millDues)}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <Card>
-        <h2 className="mb-2 font-semibold">{t.productWiseSalesProfit}</h2>
-        <Table>
-          <thead>
-            <tr className="text-left text-slate-500">
-              <th className="pb-2">{t.product}</th>
-              <th>{t.quantity}</th>
-              <th>{t.purchasedPKR}</th>
-              <th>{t.soldPKR}</th>
-              <th>{t.profit}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {profitRows.map((row, idx) => (
-              <tr key={idx} className="border-t border-slate-200">
-                <td className="py-2">{localizeApiText(row.product, isUrdu)}</td>
-                <td>{row.quantity}</td>
-                <td>{fmtCurrency(row.cost)}</td>
-                <td>{fmtCurrency(row.sales)}</td>
-                <td>{fmtCurrency(row.profit)}</td>
+        <div className="border-b border-industrial-200 px-6 py-5 bg-industrial-50">
+          <h2 className="text-xl font-bold text-industrial-900">{t.productWiseSalesProfit}</h2>
+        </div>
+        <div className="overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-industrial-100 text-industrial-700">
+              <tr>
+                <th className="px-6 py-4 text-left font-bold">{t.product}</th>
+                <th className="px-6 py-4 text-right font-bold">{t.quantity}</th>
+                <th className="px-6 py-4 text-right font-bold">{t.purchasedPKR}</th>
+                <th className="px-6 py-4 text-right font-bold">{t.soldPKR}</th>
+                <th className="px-6 py-4 text-right font-bold">{t.profit}</th>
               </tr>
-            ))}
-          </tbody>
-        </Table>
+            </thead>
+            <tbody>
+              {profitRows.map((row, idx) => (
+                <tr key={idx} className="border-t border-industrial-200 hover:bg-industrial-50">
+                  <td className="px-6 py-4 font-semibold text-industrial-900">{localizeApiText(row.product, isUrdu)}</td>
+                  <td className="px-6 py-4 text-right text-industrial-700">{row.quantity}</td>
+                  <td className="px-6 py-4 text-right text-industrial-700">{fmtCurrency(row.cost)}</td>
+                  <td className="px-6 py-4 text-right text-accent-primary font-semibold">{fmtCurrency(row.sales)}</td>
+                  <td className="px-6 py-4 text-right text-green-600 font-bold">{fmtCurrency(row.profit)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       <Card>
-        <h2 className="mb-2 font-semibold">{t.stockReport}</h2>
-        <Table>
-          <thead>
-            <tr className="text-left text-slate-500">
-              <th className="pb-2">{t.product}</th>
-              <th>{t.currentStock}</th>
-              <th>{t.unit}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stockRows.map((row: any) => (
-              <tr key={row.product_id} className="border-t border-slate-200">
-                <td className="py-2">{localizeApiText(row.product_name, isUrdu)}</td>
-                <td>{row.current_stock}</td>
-                <td>{localizeApiUnit(row.unit, isUrdu)}</td>
+        <div className="border-b border-industrial-200 px-6 py-5 bg-industrial-50">
+          <h2 className="text-xl font-bold text-industrial-900">{t.stockReport}</h2>
+        </div>
+        <div className="overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-industrial-100 text-industrial-700">
+              <tr>
+                <th className="px-6 py-4 text-left font-bold">{t.product}</th>
+                <th className="px-6 py-4 text-right font-bold">{t.currentStock}</th>
+                <th className="px-6 py-4 text-right font-bold">{t.unit}</th>
               </tr>
-            ))}
-          </tbody>
-        </Table>
+            </thead>
+            <tbody>
+              {stockRows.map((row: any) => (
+                <tr key={row.product_id} className="border-t border-industrial-200 hover:bg-industrial-50">
+                  <td className="px-6 py-4 font-semibold text-industrial-900">{localizeApiText(row.product_name, isUrdu)}</td>
+                  <td className="px-6 py-4 text-right text-industrial-700 font-semibold">{row.current_stock}</td>
+                  <td className="px-6 py-4 text-right text-industrial-700">{localizeApiUnit(row.unit, isUrdu)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       <Card>
-        <h2 className="mb-2 font-semibold">{t.topCustomers}</h2>
-        <Table>
-          <thead>
-            <tr className="text-left text-slate-500">
-              <th className="pb-2">{t.customer}</th>
-              <th>{t.purchaseVolume}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {topCustomers.map((row: any) => (
-              <tr key={row.name} className="border-t border-slate-200">
-                <td className="py-2">{localizeApiText(row.name, isUrdu)}</td>
-                <td>{fmtCurrency(row.total)}</td>
+        <div className="border-b border-industrial-200 px-6 py-5 bg-industrial-50">
+          <h2 className="text-xl font-bold text-industrial-900">{t.topCustomers}</h2>
+        </div>
+        <div className="overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-industrial-100 text-industrial-700">
+              <tr>
+                <th className="px-6 py-4 text-left font-bold">{t.customer}</th>
+                <th className="px-6 py-4 text-right font-bold">{t.purchaseVolume}</th>
               </tr>
-            ))}
-          </tbody>
-        </Table>
+            </thead>
+            <tbody>
+              {topCustomers.map((row: any) => (
+                <tr key={row.name} className="border-t border-industrial-200 hover:bg-industrial-50">
+                  <td className="px-6 py-4 font-semibold text-industrial-900">{localizeApiText(row.name, isUrdu)}</td>
+                  <td className="px-6 py-4 text-right text-accent-primary font-bold">{fmtCurrency(row.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
     </div>
   );

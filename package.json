@@ -8,8 +8,11 @@
     "backend:build": "cd backend && npm run build",
     "frontend:dev": "cd frontend && npm run dev",
     "frontend:build": "cd frontend && npm run build",
-    "electron:dev": "wait-on http://localhost:3001 && wait-on http://localhost:5173 && electron .",
-    "build": "npm run backend:build && npm run frontend:build && electron-builder"
+    "electron:dev": "wait-on tcp:localhost:3001 && wait-on http://localhost:5173 && electron .",
+    "electron:compile": "npx tsc --project electron/tsconfig.json",
+    "build": "npm run backend:build && npm run frontend:build && npm run electron:compile && electron-builder",
+    "dist:mac": "npm run build -- --mac",
+    "dist:win": "npm run build -- --win"
   },
   "private": true,
   "devDependencies": {
@@ -20,5 +23,45 @@
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
     "wait-on": "^9.0.5"
+  },
+  "build": {
+    "appId": "com.steelcementpos.app",
+    "productName": "Steel & Cement POS",
+    "asar": true,
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/main.js",
+      "electron/preload.js"
+    ],
+    "extraResources": [
+      {
+        "from": "frontend/dist",
+        "to": "frontend/dist"
+      },
+      {
+        "from": "backend/dist",
+        "to": "backend/dist"
+      },
+      {
+        "from": "backend/node_modules",
+        "to": "backend/node_modules"
+      }
+    ],
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] }
+      ]
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
