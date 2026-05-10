@@ -142,20 +142,20 @@ export default function AdvancePayments() {
     .reduce((sum, a) => sum + a.paid_amount, 0);
 
   return (
-    <div className={`space-y-6 ${isUrdu ? 'font-urdu' : ''}`}>
+    <div className={`flex flex-col h-[calc(100vh-9rem)] gap-3 ${isUrdu ? 'font-urdu' : ''}`}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
         <h1 className="text-2xl font-bold text-industrial-900">{t.advancePaymentsList}</h1>
         <button
           onClick={() => setShowRecordModal(true)}
-          className="flex items-center gap-2 bg-accent-primary text-white px-4 py-2 rounded-lg hover:bg-accent-secondary transition-colors"
+          className="flex items-center gap-2 rounded-xl bg-accent-primary px-5 py-2.5 text-sm font-bold text-white shadow-md hover:bg-accent-primary/90 transition-colors"
         >
           <Plus className="h-4 w-4" /> {t.recordAdvancePayment}
         </button>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <span className="text-sm text-blue-700 font-medium">{t.totalAdvances}</span>
@@ -180,7 +180,7 @@ export default function AdvancePayments() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 shrink-0">
         {statusButtons.map((btn) => (
           <button
             key={btn.key}
@@ -197,18 +197,18 @@ export default function AdvancePayments() {
       </div>
 
       {/* Advance Payments Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="flex-1 flex flex-col rounded-xl border-2 border-industrial-200 bg-white overflow-hidden min-h-0">
+        <div className="flex-1 overflow-auto">
           <table className="w-full">
-            <thead className="bg-industrial-50">
+            <thead className="sticky top-0 bg-industrial-800 text-white z-10">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-industrial-700 uppercase">{t.date}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-industrial-700 uppercase">{t.customer}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-industrial-700 uppercase">{t.items}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-industrial-700 uppercase">{t.advanceAmount}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-industrial-700 uppercase">{t.expectedPickup}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-industrial-700 uppercase">{t.status}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-industrial-700 uppercase">{t.action}</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">{t.date}</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">{t.customer}</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">{t.items}</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">{t.advanceAmount}</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">{t.expectedPickup}</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">{t.status}</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">{t.action}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-industrial-100">

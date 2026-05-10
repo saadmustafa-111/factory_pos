@@ -1,0 +1,64 @@
+name: Build Windows Installer
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ── Root dependencies (electron-builder etc.) ──────────────────────────
+      - name: Install root dependencies
+        run: npm install
+
+      # ── Backend ───────────────────────────────────────────────────────────
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm install
+
+      - name: Build backend
+        working-directory: backend
+        run: npm run build
+
+      # ── Frontend ──────────────────────────────────────────────────────────
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      # ── Electron ──────────────────────────────────────────────────────────
+      - name: Compile Electron TypeScript
+        run: npx tsc --project electron/tsconfig.json
+
+      # Rebuild native modules (sqlite3) for the Electron Node.js version
+      - name: Rebuild native modules for Electron
+        run: npx electron-rebuild --force --module-dir backend
+
+      # ── Package ───────────────────────────────────────────────────────────
+      - name: Build Windows installer
+        run: npx electron-builder --win --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Upload artifact ───────────────────────────────────────────────────
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist-electron/*.exe
+          retention-days: 30

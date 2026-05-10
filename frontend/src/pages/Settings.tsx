@@ -4,27 +4,14 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { api } from '../lib/api';
 import { useLang } from '../lib/i18n';
-import { localizeApiText } from '../lib/localize';
 
 export default function Settings() {
   const { t, isUrdu } = useLang();
-  const [brands, setBrands] = useState<any[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [brandName, setBrandName] = useState('');
-  const [brandSupplierId, setBrandSupplierId] = useState<number>(0);
-  const [supplierForm, setSupplierForm] = useState({
-    name: '',
-    phone: '',
-    contact_person: '',
-    address: '',
-  });
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [customerForm, setCustomerForm] = useState({ name: '', phone: '', address: '' });
   const [message, setMessage] = useState('');
 
   // Recovery PIN
@@ -62,63 +49,9 @@ export default function Settings() {
     }
   };
 
-  const loadAll = async () => {
-    const [brandsRes, suppliersRes, customersRes] = await Promise.all([
-      api.get('/cement-brands'),
-      api.get('/suppliers'),
-      api.get('/customers'),
-    ]);
-    setBrands(brandsRes.data);
-    setSuppliers(suppliersRes.data);
-    setCustomers(customersRes.data);
-  };
-
-  const loadBrands = loadAll;
-
   useEffect(() => {
-    loadAll();
     loadPinStatus();
   }, []);
-
-  const addCustomer = async () => {
-    if (!customerForm.name.trim()) return;
-    await api.post('/customers', customerForm);
-    setCustomerForm({ name: '', phone: '', address: '' });
-    await loadAll();
-  };
-
-  const removeCustomer = async (id: number) => {
-    await api.delete(`/customers/${id}`);
-    await loadAll();
-  };
-
-  const addBrand = async () => {
-    if (!brandName.trim()) return;
-    await api.post('/cement-brands', {
-      brand_name: brandName,
-      supplier_id: brandSupplierId || undefined,
-    });
-    setBrandName('');
-    setBrandSupplierId(0);
-    await loadBrands();
-  };
-
-  const removeBrand = async (id: number) => {
-    await api.delete(`/cement-brands/${id}`);
-    await loadBrands();
-  };
-
-  const addSupplier = async () => {
-    if (!supplierForm.name.trim()) return;
-    await api.post('/suppliers', supplierForm);
-    setSupplierForm({ name: '', phone: '', contact_person: '', address: '' });
-    await loadBrands();
-  };
-
-  const removeSupplier = async (id: number) => {
-    await api.delete(`/suppliers/${id}`);
-    await loadBrands();
-  };
 
   const changePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,153 +67,6 @@ export default function Settings() {
 
   return (
     <div className={`space-y-8 ${isUrdu ? 'font-urdu' : ''}`}>
-
-      {/* Customer Manager */}
-      <Card>
-        <div className="border-b border-industrial-200 px-6 py-5 bg-industrial-50">
-          <h2 className="text-xl font-bold text-industrial-900">Customer Manager</h2>
-          <p className="text-sm text-industrial-500 mt-1">Add and manage your customers. These appear in the Sales page dropdown.</p>
-        </div>
-        <div className="p-6 space-y-6">
-          <div className="flex flex-wrap gap-4 items-end">
-            <div className="flex-1 min-w-48">
-              <label className="mb-2 block text-sm font-semibold text-industrial-700">Name <span className="text-accent-danger">*</span></label>
-              <Input placeholder="Customer name" value={customerForm.name} onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })} />
-            </div>
-            <div className="flex-1 min-w-40">
-              <label className="mb-2 block text-sm font-semibold text-industrial-700">Phone</label>
-              <Input placeholder="Phone number" value={customerForm.phone} onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })} />
-            </div>
-            <div className="flex-1 min-w-48">
-              <label className="mb-2 block text-sm font-semibold text-industrial-700">Address</label>
-              <Input placeholder="Address (optional)" value={customerForm.address} onChange={(e) => setCustomerForm({ ...customerForm, address: e.target.value })} />
-            </div>
-            <Button onClick={addCustomer} className="h-11" disabled={!customerForm.name.trim()}>Add Customer</Button>
-          </div>
-
-          <div className="divide-y divide-industrial-200 rounded-xl border-2 border-industrial-200 overflow-hidden">
-            {customers.length === 0 ? (
-              <p className="px-6 py-8 text-center text-industrial-500 font-medium">No customers yet. Add your first customer above.</p>
-            ) : customers.map((c) => (
-              <div key={c.id} className="flex items-center justify-between px-5 py-4 hover:bg-industrial-50">
-                <div>
-                  <p className="font-bold text-industrial-900">{localizeApiText(c.name, isUrdu)}</p>
-                  <p className="text-sm text-industrial-500">{[c.phone, c.address].filter(Boolean).join(' · ') || 'No contact info'}</p>
-                </div>
-                <Button variant="destructive" size="sm" onClick={() => removeCustomer(c.id)}>Delete</Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Card>
-
-      <Card>
-        <div className="border-b border-industrial-200 px-6 py-5 bg-industrial-50">
-          <h2 className="text-xl font-bold text-industrial-900">{t.brandManager}</h2>
-        </div>
-        <div className="p-6 space-y-6">
-          <div className="flex flex-wrap gap-4 items-end">
-            <div className="flex-1 min-w-64">
-              <label className="mb-2 block text-sm font-semibold text-industrial-700">{t.newBrand}</label>
-              <Input placeholder={t.newBrand} value={brandName} onChange={(e) => setBrandName(e.target.value)} />
-            </div>
-            <div className="flex-1 min-w-64">
-              <label className="mb-2 block text-sm font-semibold text-industrial-700">{t.linkSupplier}</label>
-              <select
-                value={brandSupplierId}
-                onChange={(e) => setBrandSupplierId(Number(e.target.value))}
-                className="h-11 w-full rounded-lg border-2 border-industrial-300 bg-white px-4 text-sm font-medium focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20"
-              >
-                <option value={0}>{t.linkSupplier}</option>
-                {suppliers.map((supplier) => (
-                  <option key={supplier.id} value={supplier.id}>
-                    {localizeApiText(supplier.name, isUrdu)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <Button onClick={addBrand} className="h-11">
-              {t.addBrand}
-            </Button>
-          </div>
-
-          <div className="space-y-3">
-            {brands.map((brand) => (
-              <div key={brand.id} className="flex items-center justify-between rounded-xl border-2 border-industrial-200 p-4 hover:bg-industrial-50 transition-colors">
-                <span className="font-semibold text-industrial-900">
-                  {localizeApiText(brand.brand_name, isUrdu)}
-                  {brand.supplier?.name ? <span className="text-industrial-500 ml-2">→ {localizeApiText(brand.supplier.name, isUrdu)}</span> : ''}
-                </span>
-                <Button variant="destructive" onClick={() => removeBrand(brand.id)} size="sm">
-                  {t.delete}
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Card>
-
-      <Card>
-        <div className="border-b border-industrial-200 px-6 py-5 bg-industrial-50">
-          <h2 className="text-xl font-bold text-industrial-900">{t.suppliersManager}</h2>
-        </div>
-        <div className="p-6 space-y-6">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-industrial-700">{t.supplierName}</label>
-              <Input
-                placeholder={t.supplierName}
-                value={supplierForm.name}
-                onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-industrial-700">{t.contactPerson}</label>
-              <Input
-                placeholder={t.contactPerson}
-                value={supplierForm.contact_person}
-                onChange={(e) =>
-                  setSupplierForm({ ...supplierForm, contact_person: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-industrial-700">{t.phone}</label>
-              <Input
-                placeholder={t.phone}
-                value={supplierForm.phone}
-                onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-industrial-700">{t.address}</label>
-              <Input
-                placeholder={t.address}
-                value={supplierForm.address}
-                onChange={(e) => setSupplierForm({ ...supplierForm, address: e.target.value })}
-              />
-            </div>
-          </div>
-          <Button onClick={addSupplier}>
-            {t.addSupplier}
-          </Button>
-
-          <div className="space-y-3">
-            {suppliers.map((supplier) => (
-              <div key={supplier.id} className="flex items-center justify-between rounded-xl border-2 border-industrial-200 p-4 hover:bg-industrial-50 transition-colors">
-                <div>
-                  <span className="font-semibold text-industrial-900">{localizeApiText(supplier.name, isUrdu)}</span>
-                  {supplier.contact_person && <span className="text-industrial-500 ml-2">({supplier.contact_person})</span>}
-                  {supplier.phone && <span className="text-industrial-500 ml-2">• {supplier.phone}</span>}
-                </div>
-                <Button variant="destructive" onClick={() => removeSupplier(supplier.id)} size="sm">
-                  {t.delete}
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Card>
 
       <Card>
         <div className="border-b border-industrial-200 px-6 py-5 bg-industrial-50">
@@ -389,6 +175,7 @@ export default function Settings() {
           )}
         </div>
       </Card>
+
     </div>
   );
 }

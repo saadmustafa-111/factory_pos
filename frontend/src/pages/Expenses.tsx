@@ -4,7 +4,6 @@ import {
   Wrench, ReceiptText, X,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Modal } from '../components/ui/modal';
 import { api } from '../lib/api';
@@ -190,10 +189,10 @@ export default function Expenses() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className={`space-y-6 ${isUrdu ? 'font-urdu' : ''}`}>
+    <div className={`flex flex-col h-[calc(100vh-9rem)] gap-3 ${isUrdu ? 'font-urdu' : ''}`}>
 
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
         <div>
           <h1 className="text-2xl font-black text-industrial-900">{t.expensesTitle}</h1>
           <p className="text-sm text-industrial-500 mt-1">{t.expensesSubtitle}</p>
@@ -205,7 +204,7 @@ export default function Expenses() {
       </div>
 
       {/* Date filter */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3 shrink-0">
         <div className="flex rounded-xl border-2 border-industrial-200 overflow-hidden">
           {(['today', 'week', 'month'] as const).map((p) => (
             <button
@@ -225,7 +224,7 @@ export default function Expenses() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7">
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 shrink-0">
         {CATEGORIES.map((cat) => {
           const meta = CATEGORY_META[cat];
           const Icon = meta.icon;
@@ -248,7 +247,7 @@ export default function Expenses() {
       </div>
 
       {/* Grand total bar */}
-      <div className="flex items-center justify-between rounded-xl bg-industrial-800 px-6 py-4 text-white">
+      <div className="flex items-center justify-between rounded-xl bg-industrial-800 px-6 py-4 text-white shrink-0">
         <span className="text-sm font-semibold text-industrial-300 uppercase tracking-widest">
           {t.totalExpenses} ({expenses.length} {isUrdu ? 'اندراجات' : 'entries'})
         </span>
@@ -256,17 +255,18 @@ export default function Expenses() {
       </div>
 
       {/* Expense list grouped by date */}
+      <div className="flex-1 overflow-y-auto space-y-3 min-h-0">
       {loading ? (
         <p className="py-8 text-center text-industrial-400">{t.loading}</p>
       ) : grouped.length === 0 ? (
-        <Card>
+        <div className="rounded-xl border-2 border-industrial-200 bg-white">
           <p className="py-12 text-center text-industrial-400 font-medium">{t.noExpenses}</p>
-        </Card>
+        </div>
       ) : (
         grouped.map(([date, items]) => {
           const dayTotal = items.reduce((s, e) => s + e.amount, 0);
           return (
-            <Card key={date}>
+            <div key={date} className="rounded-xl border-2 border-industrial-200 bg-white overflow-hidden">
               {/* Day header */}
               <div className="flex items-center justify-between border-b border-industrial-200 px-6 py-4 bg-industrial-50">
                 <div>
@@ -328,10 +328,11 @@ export default function Expenses() {
                   );
                 })}
               </div>
-            </Card>
+            </div>
           );
         })
       )}
+      </div>
 
       {/* Add / Edit Modal */}
       <Modal

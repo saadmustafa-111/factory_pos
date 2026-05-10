@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import {
   ShoppingCart, Truck, Banknote, TrendingUp, X, ChevronRight, User, Phone,
-  Calendar, ArrowRight, Package,
+  Calendar, ArrowRight, Package, FileDown, Eye, EyeOff,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { fmtCurrency } from '../lib/utils';
+import { downloadDailyRegisterPdf, downloadDayDetailPdf } from '../lib/pdfExports';
 
 interface DayRow {
   date: string; sales_count: number; sales_amount: number; cash_received: number;
@@ -43,6 +44,8 @@ function getDayName(dateStr: string, isUrdu: boolean) {
 
 function DayDetailDrawer({ date, onClose }: { date: string; onClose: () => void }) {
   const { isUrdu } = useLang();
+  const [amtsHidden] = useState(() => localStorage.getItem('daily-table-hidden') === 'true');
+  const H = (val: number) => amtsHidden ? '••••••' : fmtCurrency(val);
   const [detail, setDetail] = useState<DayDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'sales' | 'stock' | 'payments'>('sales');
@@ -60,9 +63,20 @@ function DayDetailDrawer({ date, onClose }: { date: string; onClose: () => void 
             <p className="text-xs text-industrial-300 uppercase tracking-widest">روزنامچہ · Daily Detail</p>
             <h2 className="text-xl font-bold text-white">{getDayName(date, isUrdu)}, {date}</h2>
           </div>
-          <button onClick={onClose} className="rounded-full p-2 text-industrial-300 hover:bg-industrial-600 hover:text-white transition-colors">
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {detail && (
+              <button
+                onClick={() => downloadDayDetailPdf(detail)}
+                className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 transition-colors"
+              >
+                <FileDown className="h-4 w-4" />
+                PDF
+              </button>
+            )}
+            <button onClick={onClose} className="rounded-full p-2 text-industrial-300 hover:bg-industrial-600 hover:text-white transition-colors">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
         {loading && <div className="flex-1 flex items-center justify-center"><div className="h-8 w-8 rounded-full border-4 border-industrial-200 border-t-industrial-700 animate-spin" /></div>}
         {detail && (
@@ -70,15 +84,15 @@ function DayDetailDrawer({ date, onClose }: { date: string; onClose: () => void 
             <div className="grid grid-cols-3 gap-px bg-industrial-100 border-b border-industrial-100">
               {[
                 { label: 'Total Sales', val: detail.summary.total_sales, color: 'text-blue-700' },
-                { label: 'Cash + Collections', val: detail.summary.cash_collected + detail.summary.payments_collected, color: 'text-green-700' },
+                { label: 'Cash + Udhar Wapsi', val: detail.summary.cash_collected + detail.summary.payments_collected, color: 'text-green-700' },
                 { label: 'Credit Given', val: detail.summary.credit_given, color: 'text-amber-700' },
-                { label: 'Collections', val: detail.summary.payments_collected, color: 'text-purple-700' },
+                { label: 'Udhar Wapsi', val: detail.summary.payments_collected, color: 'text-purple-700' },
                 { label: 'Stock Value', val: detail.summary.stock_value, color: 'text-industrial-700' },
                 { label: 'Net Profit', val: detail.summary.profit, color: detail.summary.profit >= 0 ? 'text-emerald-700' : 'text-red-600' },
               ].map(c => (
                 <div key={c.label} className="bg-white px-4 py-3">
                   <p className="text-xs text-industrial-400 font-medium">{c.label}</p>
-                  <p className={`text-sm font-bold ${c.color}`}>{fmtCurrency(c.val)}</p>
+                  <p className={`text-sm font-bold ${c.color}`}>{H(c.val)}</p>
                 </div>
               ))}​
             </div>
@@ -86,7 +100,7 @@ function DayDetailDrawer({ date, onClose }: { date: string; onClose: () => void 
               {([
                 { key: 'sales' as const, label: 'Sales', count: detail.sales.length },
                 { key: 'stock' as const, label: 'Stock In', count: detail.stock_movements.length },
-                { key: 'payments' as const, label: 'Collections', count: detail.payments_received.length },
+                { key: 'payments' as const, label: 'Udhar Wapsi', count: detail.payments_received.length },
               ]).map(tb => (
                 <button key={tb.key} onClick={() => setTab(tb.key)}
                   className={`relative px-5 py-3 text-sm font-semibold transition-colors ${tab === tb.key ? 'text-industrial-700' : 'text-industrial-400 hover:text-industrial-600'}`}>
@@ -116,8 +130,8 @@ function DayDetailDrawer({ date, onClose }: { date: string; onClose: () => void 
                           {sale.customer_address && <p className="text-xs text-industrial-400 mt-0.5 ml-6">{sale.customer_address}</p>}
                         </div>
                         <div className="text-right ml-4">
-                          <p className="text-xl font-black text-industrial-900">{fmtCurrency(sale.total_amount)}</p>
-                          {sale.remaining_amount > 0 && <p className="text-sm font-semibold text-amber-700 mt-0.5">باقی {fmtCurrency(sale.remaining_amount)}</p>}
+                          <p className="text-xl font-black text-industrial-900">{H(sale.total_amount)}</p>
+                          {sale.remaining_amount > 0 && <p className="text-sm font-semibold text-amber-700 mt-0.5">باقی {H(sale.remaining_amount)}</p>}
                         </div>
                       </div>
                     </div>
@@ -128,10 +142,10 @@ function DayDetailDrawer({ date, onClose }: { date: string; onClose: () => void 
                             <Package className="h-4 w-4 text-industrial-200 shrink-0" />
                             <div>
                               <p className="font-semibold text-industrial-800 text-sm">{item.product}</p>
-                              <p className="text-xs text-industrial-400">{item.qty} {displayUnit(item.unit, isUrdu)} × {fmtCurrency(item.rate)}</p>
+                              <p className="text-xs text-industrial-400">{item.qty} {displayUnit(item.unit, isUrdu)} × {H(item.rate)}</p>
                             </div>
                           </div>
-                          <span className="font-bold text-industrial-800">{fmtCurrency(item.total)}</span>
+                          <span className="font-bold text-industrial-800">{H(item.total)}</span>
                         </div>
                       ))}
                     </div>
@@ -146,12 +160,12 @@ function DayDetailDrawer({ date, onClose }: { date: string; onClose: () => void 
                       <div key={i} className="flex items-center justify-between rounded-xl border border-industrial-100 bg-white px-5 py-4 shadow-industrial">
                         <div>
                           <p className="font-bold text-industrial-800">{s.product}</p>
-                          <p className="text-xs text-industrial-400 mt-0.5"><span className="font-medium text-industrial-600">{s.supplier}</span> · {s.quantity} {displayUnit(s.unit, isUrdu)} @ {fmtCurrency(s.purchase_rate)}/{displayUnit(s.unit, isUrdu)}</p>
+                          <p className="text-xs text-industrial-400 mt-0.5"><span className="font-medium text-industrial-600">{s.supplier}</span> · {s.quantity} {displayUnit(s.unit, isUrdu)} @ {H(s.purchase_rate)}/{displayUnit(s.unit, isUrdu)}</p>
                         </div>
-                        <span className="font-bold text-industrial-700 text-base">{fmtCurrency(s.total_value)}</span>
+                        <span className="font-bold text-industrial-700 text-base">{H(s.total_value)}</span>
                       </div>
                     ))}
-                    <div className="flex justify-end rounded-xl bg-industrial-100 px-5 py-3"><span className="font-bold text-industrial-700">Total: {fmtCurrency(detail.summary.stock_value)}</span></div>
+                    <div className="flex justify-end rounded-xl bg-industrial-100 px-5 py-3"><span className="font-bold text-industrial-700">Total: {H(detail.summary.stock_value)}</span></div>
                   </div>
               )}
               {tab === 'payments' && (detail.payments_received.length === 0
@@ -166,10 +180,10 @@ function DayDetailDrawer({ date, onClose }: { date: string; onClose: () => void 
                             <p className="text-xs text-industrial-400 capitalize">{p.method}{p.notes ? ` · ${p.notes}` : ''}</p>
                           </div>
                         </div>
-                        <span className="font-bold text-green-700 text-lg">{fmtCurrency(p.amount)}</span>
+                        <span className="font-bold text-green-700 text-lg">{H(p.amount)}</span>
                       </div>
                     ))}
-                    <div className="flex justify-end rounded-xl bg-green-50 px-5 py-3 mt-2"><span className="font-bold text-green-700">Total: {fmtCurrency(detail.payments_received.reduce((s, r) => s + r.amount, 0))}</span></div>
+                    <div className="flex justify-end rounded-xl bg-green-50 px-5 py-3 mt-2"><span className="font-bold text-green-700">Total: {H(detail.payments_received.reduce((s, r) => s + r.amount, 0))}</span></div>
                   </div>
               )}
             </div>
@@ -183,6 +197,12 @@ function DayDetailDrawer({ date, onClose }: { date: string; onClose: () => void 
 export default function DailyRegister() {
   const { isUrdu } = useLang();
   const today = todayStr();
+  const [amtsHidden, setAmtsHidden] = useState(() => localStorage.getItem('daily-strip-hidden') === 'true');
+  const toggleAmts = (v: boolean) => { setAmtsHidden(v); localStorage.setItem('daily-strip-hidden', String(v)); };
+  const HS = (val: number) => amtsHidden ? '••••••' : fmtCurrency(val);
+  const [tableHidden, setTableHidden] = useState(() => localStorage.getItem('daily-table-hidden') === 'true');
+  const toggleTable = (v: boolean) => { setTableHidden(v); localStorage.setItem('daily-table-hidden', String(v)); };
+  const HT = (val: number) => tableHidden ? '••••••' : fmtCurrency(val);
   const [from, setFrom] = useState(firstOfMonth());
   const [to, setTo] = useState(today);
   const [rows, setRows] = useState<DayRow[]>([]);
@@ -215,9 +235,13 @@ export default function DailyRegister() {
 
   const PRESETS = [{ key: 'today', label: 'Today' }, { key: 'yesterday', label: 'Yesterday' }, { key: 'week', label: 'This Week' }, { key: 'month', label: 'This Month' }];
 
+  const exportRangePdf = () => {
+    downloadDailyRegisterPdf({ from, to, rows, totals });
+  };
+
   return (
-    <div className={`space-y-0 ${isUrdu ? 'font-urdu' : ''}`}>
-      <div className="bg-gradient-to-br from-industrial-800 via-industrial-800 to-industrial-900 px-6 py-6 rounded-2xl shadow-industrial-lg">
+    <div className={`flex flex-col h-[calc(100vh-9rem)] gap-3 ${isUrdu ? 'font-urdu' : ''}`}>
+      <div className="bg-gradient-to-br from-industrial-800 via-industrial-800 to-industrial-900 px-6 py-6 rounded-2xl shadow-industrial-lg shrink-0">
         <div className="max-w-full mx-auto">
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div className="flex items-center gap-4">
@@ -240,6 +264,20 @@ export default function DailyRegister() {
                 <input type="date" value={from} onChange={e => { setFrom(e.target.value); setActivePreset('custom'); }} className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm text-white focus:bg-white/20 focus:outline-none" />
                 <ArrowRight className="h-4 w-4 text-white/40" />
                 <input type="date" value={to} onChange={e => { setTo(e.target.value); setActivePreset('custom'); }} className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm text-white focus:bg-white/20 focus:outline-none" />
+                <button
+                  onClick={exportRangePdf}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/15 px-3 py-2 text-sm font-semibold text-white hover:bg-white/25 transition-colors"
+                >
+                  <FileDown className="h-4 w-4" />
+                  PDF
+                </button>
+                <button
+                  onClick={() => toggleAmts(!amtsHidden)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/15 px-3 py-2 text-sm font-semibold text-white hover:bg-white/25 transition-colors"
+                >
+                  {amtsHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  {amtsHidden ? 'Show Strip' : 'Hide Strip'}
+                </button>
               </div>
             </div>
           </div>
@@ -247,30 +285,41 @@ export default function DailyRegister() {
             {[
               { icon: ShoppingCart, label: 'Total Sales', val: totals.sales_amount, textC: 'text-blue-300', borderC: 'border-blue-400/30' },
               { icon: Banknote, label: 'Cash Received', val: totals.cash_received, textC: 'text-green-300', borderC: 'border-green-400/30' },
-              { icon: Banknote, label: 'Collections', val: totals.payments_collected, textC: 'text-purple-300', borderC: 'border-purple-400/30' },
+              { icon: Banknote, label: 'Udhar Wapsi', val: totals.payments_collected, textC: 'text-purple-300', borderC: 'border-purple-400/30' },
               { icon: Truck, label: 'Stock In', val: totals.stock_added_value, textC: 'text-industrial-300', borderC: 'border-industrial-400/30' },
               { icon: TrendingUp, label: 'Net Profit', val: totals.net_profit, textC: totals.net_profit >= 0 ? 'text-emerald-300' : 'text-red-300', borderC: totals.net_profit >= 0 ? 'border-emerald-400/30' : 'border-red-400/30' },
             ].map(c => { const Icon = c.icon; return (
               <div key={c.label} className={`rounded-xl border ${c.borderC} px-4 py-3 bg-black/10`}>
                 <div className="flex items-center gap-2 mb-1"><Icon className={`h-3.5 w-3.5 ${c.textC}`} /><p className="text-xs text-white/50 font-medium">{c.label}</p></div>
-                <p className={`text-lg font-black ${c.textC}`}>{fmtCurrency(c.val)}</p>
+                <p className={`text-lg font-black ${c.textC}`}>{HS(c.val)}</p>
               </div>
             ); })}
           </div>
         </div>
       </div>
-      <div className="max-w-full mx-auto py-4">
+      <div className="flex-1 flex flex-col rounded-2xl border border-industrial-200 bg-white overflow-hidden min-h-0">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-industrial-100 bg-industrial-50 shrink-0">
+          <p className="text-xs font-bold uppercase tracking-widest text-industrial-400">Register</p>
+          <button
+            onClick={() => toggleTable(!tableHidden)}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500 transition-colors"
+          >
+            {tableHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+            {tableHidden ? 'Show Amounts' : 'Hide Amounts'}
+          </button>
+        </div>
+        <div className="flex-1 overflow-auto">
         {loading ? (
           <div className="flex items-center justify-center py-24"><div className="h-10 w-10 rounded-full border-4 border-industrial-200 border-t-industrial-700 animate-spin" /></div>
         ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-industrial-200 bg-white py-24 text-industrial-400">
+          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-industrial-200 bg-white py-24 text-industrial-400 m-4">
             <Calendar className="h-16 w-16 opacity-20 mb-4" /><p className="text-lg font-semibold">No records in this period</p>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-industrial-200 bg-white shadow-industrial">
-            <div className="hidden lg:grid grid-cols-[200px_50px_1fr_1fr_1fr_1fr_1fr_1fr_44px] border-b-2 border-industrial-100 bg-industrial-50 px-4 py-3">
-              {['Date', '#', 'Sales Amt', 'Cash In', 'Credit', 'Collections', 'Stock In', 'Profit', ''].map((h, i) => (
-                <div key={i} className={`text-xs font-bold uppercase tracking-widest text-industrial-400 ${i > 1 ? 'text-right' : i === 1 ? 'text-center' : ''}`}>{h}</div>
+          <div className="overflow-hidden bg-white">
+            <div className="hidden lg:grid grid-cols-[200px_50px_1fr_1fr_1fr_1fr_1fr_1fr_44px] border-b-2 border-industrial-800 bg-industrial-800 px-4 py-3">
+              {['Date', '#', 'Sales Amt', 'Cash In', 'Credit (Udhar)', 'Udhar Wapsi', 'Stock In', 'Profit', ''].map((h, i) => (
+                <div key={i} className={`text-xs font-bold uppercase tracking-widest text-white/80 ${i > 1 ? 'text-right' : i === 1 ? 'text-center' : ''}`}>{h}</div>
               ))}
             </div>
             {rows.map((row, idx) => {
@@ -291,12 +340,12 @@ export default function DailyRegister() {
                     </div>
                   </div>
                   <div className="text-center"><span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-accent-primary/10 text-sm font-black text-accent-primary group-hover:bg-accent-primary/20">{row.sales_count}</span></div>
-                  <div className="text-right pr-2 font-semibold text-industrial-800">{fmtCurrency(row.sales_amount)}</div>
-                  <div className="text-right pr-2"><span className="font-bold text-green-700">{fmtCurrency(row.cash_received)}</span></div>
-                  <div className="text-right pr-2">{row.credit_given > 0 ? <span className="font-bold text-amber-700">{fmtCurrency(row.credit_given)}</span> : <span className="text-industrial-200">—</span>}</div>
-                  <div className="text-right pr-2">{row.payments_collected > 0 ? <span className="font-bold text-purple-700">{fmtCurrency(row.payments_collected)}</span> : <span className="text-industrial-200">—</span>}</div>
-                  <div className="text-right pr-2">{row.stock_added_count > 0 ? <div><p className="font-semibold text-industrial-700">{fmtCurrency(row.stock_added_value)}</p><p className="text-xs text-industrial-400">{row.stock_added_count}×</p></div> : <span className="text-industrial-200">—</span>}</div>
-                  <div className="text-right pr-2"><span className={`font-black text-base ${row.net_profit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{fmtCurrency(row.net_profit)}</span></div>
+                  <div className="text-right pr-2 font-semibold text-industrial-800">{HT(row.sales_amount)}</div>
+                  <div className="text-right pr-2"><span className="font-bold text-green-700">{HT(row.cash_received)}</span></div>
+                  <div className="text-right pr-2">{row.credit_given > 0 ? <span className="font-bold text-amber-700">{HT(row.credit_given)}</span> : <span className="text-industrial-200">—</span>}</div>
+                  <div className="text-right pr-2">{row.payments_collected > 0 ? <span className="font-bold text-purple-700">{HT(row.payments_collected)}</span> : <span className="text-industrial-200">—</span>}</div>
+                  <div className="text-right pr-2">{row.stock_added_count > 0 ? <div><p className="font-semibold text-industrial-700">{HT(row.stock_added_value)}</p><p className="text-xs text-industrial-400">{row.stock_added_count}×</p></div> : <span className="text-industrial-200">—</span>}</div>
+                  <div className="text-right pr-2"><span className={`font-black text-base ${row.net_profit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{HT(row.net_profit)}</span></div>
                   <div className="flex items-center justify-center"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-industrial-100 text-industrial-400 group-hover:bg-industrial-700 group-hover:text-white transition-all"><ChevronRight className="h-4 w-4" /></div></div>
                 </div>
               );
@@ -304,16 +353,17 @@ export default function DailyRegister() {
             <div className="grid grid-cols-[200px_50px_1fr_1fr_1fr_1fr_1fr_1fr_44px] items-center border-t-2 border-industrial-200 bg-industrial-800 px-4 py-4">
               <div className="text-sm font-black text-white">Total · {rows.length} days</div>
               <div className="text-center"><span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-sm font-black text-white">{totals.sales_count}</span></div>
-              <div className="text-right pr-2 font-bold text-white">{fmtCurrency(totals.sales_amount)}</div>
-              <div className="text-right pr-2 font-bold text-green-300">{fmtCurrency(totals.cash_received)}</div>
-              <div className="text-right pr-2 font-bold text-amber-300">{fmtCurrency(totals.credit_given)}</div>
-              <div className="text-right pr-2 font-bold text-purple-300">{fmtCurrency(totals.payments_collected)}</div>
-              <div className="text-right pr-2 font-bold text-industrial-300">{fmtCurrency(totals.stock_added_value)}</div>
-              <div className={`text-right pr-2 font-black text-lg ${totals.net_profit >= 0 ? 'text-emerald-300' : 'text-red-400'}`}>{fmtCurrency(totals.net_profit)}</div>
+              <div className="text-right pr-2 font-bold text-white">{HT(totals.sales_amount)}</div>
+              <div className="text-right pr-2 font-bold text-green-300">{HT(totals.cash_received)}</div>
+              <div className="text-right pr-2 font-bold text-amber-300">{HT(totals.credit_given)}</div>
+              <div className="text-right pr-2 font-bold text-purple-300">{HT(totals.payments_collected)}</div>
+              <div className="text-right pr-2 font-bold text-industrial-300">{HT(totals.stock_added_value)}</div>
+              <div className={`text-right pr-2 font-black text-lg ${totals.net_profit >= 0 ? 'text-emerald-300' : 'text-red-400'}`}>{HT(totals.net_profit)}</div>
               <div />
             </div>
           </div>
         )}
+        </div>
       </div>
       {detailDate && <DayDetailDrawer date={detailDate} onClose={() => setDetailDate(null)} />}
     </div>
