@@ -41,6 +41,9 @@ export class Product {
   @Column({ type: 'text' })
   unit: ProductUnit;
 
+  @Column({ type: 'float', default: 0 })
+  discount: number;
+
   @Column({ default: true })
   is_active: boolean;
 

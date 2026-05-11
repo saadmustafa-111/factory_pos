@@ -12,6 +12,9 @@ import { CustomerLedger } from './entities/customer-ledger.entity';
 import { InstallmentDue } from './entities/installment-due.entity';
 import { InstallmentPayment } from './entities/installment-payment.entity';
 import { InstallmentPlan } from './entities/installment-plan.entity';
+import { CustomerManualCredit } from './entities/customer-manual-credit.entity';
+import { Sale } from '../sales/entities/sale.entity';
+import { Payment } from '../payments/entities/payment.entity';
 
 @Injectable()
 export class CustomerLedgerService {
@@ -28,6 +31,12 @@ export class CustomerLedgerService {
     private readonly duesRepo: Repository<InstallmentDue>,
     @InjectRepository(InstallmentPayment)
     private readonly paymentsRepo: Repository<InstallmentPayment>,
+    @InjectRepository(CustomerManualCredit)
+    private readonly manualCreditsRepo: Repository<CustomerManualCredit>,
+    @InjectRepository(Sale)
+    private readonly salesRepo: Repository<Sale>,
+    @InjectRepository(Payment)
+    private readonly salePaymentsRepo: Repository<Payment>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -93,6 +102,13 @@ export class CustomerLedgerService {
           .orderBy('d.due_date', 'ASC')
           .getOne();
 
+        // Sales pending amount (unpaid balance from direct sales)
+        const salesPendingRes = await this.dataSource.query(
+          `SELECT COALESCE(SUM(s.pending_amount), 0) as total_pending FROM sales s WHERE s.customer_id = ? AND s.status != 'paid'`,
+          [customer.id],
+        );
+        const salesPending = Number(salesPendingRes[0]?.total_pending ?? 0);
+
         // Last purchase / payment dates from sales
         const lastSale = await this.dataSource.query(
           `SELECT MAX(s.date) as last_date FROM sales s WHERE s.customer_id = ?`,
@@ -116,8 +132,10 @@ export class CustomerLedgerService {
           payment_term_days: 30,
         };
 
+        const ledgerBalance = Number(custLedger.remaining_balance ?? 0);
+        const effectiveBalance = Math.max(ledgerBalance, salesPending);
         const effectiveStatus =
-          overdueAmount > 0 ? 'overdue' : (custLedger.remaining_balance > 0 ? 'active' : 'clear');
+          overdueAmount > 0 ? 'overdue' : (effectiveBalance > 0 ? 'active' : 'clear');
 
         return {
           id: customer.id,
@@ -129,7 +147,8 @@ export class CustomerLedgerService {
           payment_term_days: custLedger.payment_term_days,
           total_purchased: custLedger.total_purchased,
           total_paid: custLedger.total_paid,
-          remaining_balance: custLedger.remaining_balance,
+          remaining_balance: effectiveBalance,
+          sales_pending: salesPending,
           overdue_amount: overdueAmount,
           overdue_installments: overdueDues.length,
           last_purchase_date: lastSale[0]?.last_date ?? null,
@@ -141,6 +160,11 @@ export class CustomerLedgerService {
           next_due_amount: nextDue ? nextDue.due_amount - nextDue.paid_amount : null,
           status: effectiveStatus,
           created_at: customer.created_at,
+          // New fields
+          vehicle_number: customer.vehicle_number,
+          cnic: customer.cnic,
+          relation_with_me: customer.relation_with_me,
+          image_url: customer.image_url,
         };
       }),
     );
@@ -264,6 +288,54 @@ export class CustomerLedgerService {
       [customerId],
     );
 
+    // Manual (previous) credits
+    const manualCredits = await this.manualCreditsRepo.find({
+      where: { customer_id: customerId },
+      order: { credit_date: 'DESC' },
+    });
+
+    // ── Compute paid distribution for manual credits BEFORE building purchase history ──
+    const salesPaid = sales.reduce((sum: number, s: any) => sum + Number(s.paid_amount || 0), 0);
+    const manualPaymentsApplied = Math.max(0, Number(ledger.total_paid) - salesPaid);
+    let manualPaymentPool = manualPaymentsApplied;
+    const manualCreditsPaid = manualCredits
+      .slice()
+      .sort((a, b) => (a.credit_date > b.credit_date ? 1 : -1))
+      .map((mc) => {
+        const applied = Math.min(manualPaymentPool, mc.amount);
+        manualPaymentPool -= applied;
+        return { id: mc.id, paid: applied, pending: mc.amount - applied };
+      });
+    const manualPaidMap = new Map(manualCreditsPaid.map((r) => [r.id, r]));
+
+    // Merge sales + manual credits into one purchase history, sorted by date desc
+    const purchaseHistory = [
+      ...sales.map((s: any) => ({
+        id: s.id,
+        date: s.date,
+        total_amount: Number(s.total_amount),
+        paid_amount: Number(s.paid_amount),
+        pending_amount: Number(s.pending_amount),
+        status: s.status,
+        items_summary: s.items_summary,
+        source: 'sale',
+      })),
+      ...manualCredits.map((mc) => {
+        const paidInfo = manualPaidMap.get(mc.id) ?? { paid: 0, pending: mc.amount };
+        return {
+          id: mc.id,
+          date: mc.credit_date,
+          total_amount: mc.amount,
+          paid_amount: paidInfo.paid,
+          pending_amount: paidInfo.pending,
+          status: paidInfo.pending <= 0 ? 'paid' : paidInfo.paid > 0 ? 'partial' : 'pending',
+          items_summary: mc.item_description,
+          notes: mc.notes,
+          source: 'manual',
+        };
+      }),
+    ].sort((a, b) => (a.date < b.date ? 1 : -1));
+
     // Overdue summary
     const overdueDues = await this.duesRepo
       .createQueryBuilder('d')
@@ -274,6 +346,14 @@ export class CustomerLedgerService {
 
     const overdueAmount = overdueDues.reduce((s, d) => s + (d.due_amount - d.paid_amount), 0);
 
+    // ── Live summary computed from actual sales + manual credits ──────────────
+    const salesTotal = sales.reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0);
+    const salesPending = sales.reduce((sum: number, s: any) => sum + Number(s.pending_amount || 0), 0);
+    const manualTotal = manualCredits.reduce((sum, mc) => sum + mc.amount, 0);
+    const totalPurchased = salesTotal + manualTotal;
+    const totalPaid = salesPaid + manualPaymentsApplied;
+    const remainingBalance = salesPending + (manualTotal - manualPaymentsApplied);
+
     return {
       customer: {
         ...customer,
@@ -282,16 +362,43 @@ export class CustomerLedgerService {
         payment_term_days: ledger.payment_term_days,
       },
       summary: {
-        total_purchased: ledger.total_purchased,
-        total_paid: ledger.total_paid,
-        remaining_balance: ledger.remaining_balance,
+        total_purchased: totalPurchased,
+        total_paid: totalPaid,
+        remaining_balance: remainingBalance,
         overdue_amount: overdueAmount,
         overdue_installments: overdueDues.length,
       },
       installment_plans: plans,
       payment_history: payments,
-      purchase_history: sales,
+      purchase_history: purchaseHistory,
     };
+  }
+
+  // ─── ADD MANUAL (PREVIOUS) CREDIT ────────────────────────────────────────
+
+  async addManualCredit(
+    customerId: number,
+    body: { item_description: string; amount: number; credit_date: string; notes?: string },
+  ) {
+    const customer = await this.customersRepo.findOne({ where: { id: customerId } });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const record = this.manualCreditsRepo.create({
+      customer_id: customerId,
+      item_description: body.item_description,
+      amount: body.amount,
+      credit_date: body.credit_date,
+      notes: body.notes ?? null!,
+    });
+    await this.manualCreditsRepo.save(record);
+
+    // Bump ledger balance
+    const ledger = await this.getOrCreateLedger(customerId);
+    ledger.total_purchased += body.amount;
+    ledger.remaining_balance = Math.max(0, ledger.total_purchased - ledger.total_paid);
+    await this.ledgerRepo.save(ledger);
+
+    return { success: true, id: record.id };
   }
 
   // ─── CREATE INSTALLMENT PLAN ──────────────────────────────────────────────
@@ -546,6 +653,123 @@ export class CustomerLedgerService {
       overdue_customers: Number(overdueRows[0]?.overdue_customers ?? 0),
       total_overdue: Number(overdueRows[0]?.total_overdue ?? 0),
       today_collections: Number(todayCollected[0]?.total ?? 0),
+    };
+  }
+
+  // ─── SALES-BASED LEDGER SUMMARY (like mill-payments/ledger) ────────────────
+
+  async getSalesLedgerSummary() {
+    const customers = await this.customersRepo.find({ order: { name: 'ASC' } });
+
+    const results = await Promise.all(
+      customers.map(async (customer) => {
+        const sales = await this.salesRepo.find({ where: { customer_id: customer.id } });
+        if (sales.length === 0) return null;
+
+        const totalBilled = sales.reduce((s, r) => s + Number(r.total_amount), 0);
+        const totalCollected = sales.reduce((s, r) => s + Number(r.paid_amount), 0);
+        const balance = sales.reduce((s, r) => s + Number(r.pending_amount), 0);
+
+        return {
+          customer: { id: customer.id, name: customer.name, phone: customer.phone },
+          totalBilled,
+          totalCollected,
+          balance,
+        };
+      }),
+    );
+
+    return results.filter(Boolean);
+  }
+
+  // ─── SALES-BASED INDIVIDUAL LEDGER (like mill-payments/ledger/:id) ─────────
+
+  async getCustomerSalesLedger(customerId: number) {
+    const customer = await this.customersRepo.findOne({ where: { id: customerId } });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    // Fetch all sales with item summaries
+    const salesRows: Array<{
+      id: number; date: string; total_amount: number; paid_amount: number;
+      pending_amount: number; status: string; items_summary: string;
+    }> = await this.dataSource.query(
+      `SELECT s.id, s.date, s.total_amount, s.paid_amount, s.pending_amount, s.status,
+              group_concat(
+                p.name ||
+                CASE WHEN cb.brand_name IS NOT NULL THEN ' (' || cb.brand_name || ')' ELSE '' END ||
+                ' x' || CAST(CAST(si.quantity AS INTEGER) AS TEXT) || ' ' || p.unit,
+                ', '
+              ) as items_summary
+       FROM sales s
+       LEFT JOIN sale_items si ON si.sale_id = s.id
+       LEFT JOIN products p ON p.id = si.product_id
+       LEFT JOIN cement_brands cb ON cb.id = si.cement_brand_id
+       WHERE s.customer_id = ?
+       GROUP BY s.id
+       ORDER BY s.date ASC`,
+      [customerId],
+    );
+
+    // Fetch all direct sale payments
+    const payments = await this.salePaymentsRepo.find({
+      where: { customer_id: customerId },
+      order: { payment_date: 'ASC' },
+    });
+
+    type RawEntry = {
+      id: string; date: Date; type: 'sale' | 'payment';
+      description: string; debit: number; credit: number;
+      sale_id?: number; payment_status?: string;
+    };
+
+    const raw: RawEntry[] = [
+      ...salesRows.map((s) => ({
+        id: `sale-${s.id}`,
+        date: new Date(s.date),
+        type: 'sale' as const,
+        description: s.items_summary || `Sale #${s.id}`,
+        debit: Number(s.total_amount),
+        credit: 0,
+        sale_id: s.id,
+        payment_status: s.status,
+      })),
+      ...payments.map((p) => ({
+        id: `pay-${p.id}`,
+        date: new Date(p.payment_date),
+        type: 'payment' as const,
+        description: p.notes || 'Payment received',
+        debit: 0,
+        credit: Number(p.amount_paid),
+      })),
+    ];
+
+    // Sort by date; sales before payments on same day
+    raw.sort((a, b) => {
+      const diff = a.date.getTime() - b.date.getTime();
+      if (diff !== 0) return diff;
+      return a.type === 'sale' ? -1 : 1;
+    });
+
+    // Compute running balance
+    let running = 0;
+    const entries = raw.map((e) => {
+      running += e.debit - e.credit;
+      return { ...e, balance: running };
+    });
+
+    const totalDebit = salesRows.reduce((s, r) => s + Number(r.total_amount), 0);
+    const totalCredit = payments.reduce((s, r) => s + Number(r.amount_paid), 0);
+
+    // Sales summary table (sorted by date desc)
+    const salesSummary = [...salesRows].sort((a, b) => (a.date < b.date ? 1 : -1));
+
+    return {
+      customer,
+      totalDebit,
+      totalCredit,
+      balance: totalDebit - totalCredit,
+      entries,
+      salesSummary,
     };
   }
 }

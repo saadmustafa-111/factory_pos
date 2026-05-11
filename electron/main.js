@@ -1,40 +1,171 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
 const node_fs_1 = require("node:fs");
+const node_crypto_1 = require("node:crypto");
 const node_path_1 = __importDefault(require("node:path"));
 const isDev = !electron_1.app.isPackaged;
+let mainWindow = null;
+// ─── INTERNET + CLOUD BACKUP SCHEDULER ───────────────────────────────────────
+function isOnline() {
+    return electron_1.net.isOnline();
+}
+function getLastCloudBackup() {
+    try {
+        const userDataPath = electron_1.app.getPath('userData');
+        const metaPath = node_path_1.default.join(userDataPath, 'backup-meta.json');
+        if ((0, node_fs_1.existsSync)(metaPath)) {
+            const meta = JSON.parse((0, node_fs_1.readFileSync)(metaPath, 'utf-8'));
+            if (meta.lastCloudBackup)
+                return new Date(meta.lastCloudBackup);
+        }
+    }
+    catch {
+        /* ignore */
+    }
+    return null;
+}
+function scheduleCloudBackupCheck() {
+    // Check every 30 minutes
+    setInterval(() => {
+        if (!mainWindow || mainWindow.isDestroyed())
+            return;
+        if (!isOnline())
+            return;
+        const lastCloud = getLastCloudBackup();
+        const msIn24h = 24 * 60 * 60 * 1000;
+        const needsBackup = !lastCloud || Date.now() - lastCloud.getTime() > msIn24h;
+        if (needsBackup) {
+            // Signal the renderer to POST /backup/cloud-now
+            mainWindow.webContents.send('trigger-cloud-backup');
+        }
+    }, 30 * 60 * 1000); // 30 minutes
+}
+// ─── IPC HANDLERS ─────────────────────────────────────────────────────────────
+electron_1.ipcMain.handle('show-open-dialog', async (_event, options) => {
+    if (!mainWindow)
+        return { canceled: true, filePaths: [] };
+    return electron_1.dialog.showOpenDialog(mainWindow, options);
+});
+electron_1.ipcMain.handle('open-external', async (_event, url) => {
+    // Only allow safe http/https URLs — prevents XSS from opening arbitrary protocols
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
+            return;
+    }
+    catch {
+        return; // invalid URL
+    }
+    await electron_1.shell.openExternal(url);
+});
+// ─── BACKEND STARTUP ──────────────────────────────────────────────────────────
 async function startBackend() {
     if (isDev)
         return;
     const backendDist = node_path_1.default.join(process.resourcesPath, 'backend', 'dist', 'main.js');
+    console.log('[Backend] resourcesPath:', process.resourcesPath);
+    console.log('[Backend] Looking for dist at:', backendDist);
     if (!(0, node_fs_1.existsSync)(backendDist)) {
-        console.error('Backend dist not found at:', backendDist);
+        console.error('[Backend] dist NOT FOUND at:', backendDist);
         return;
     }
+    console.log('[Backend] dist found, loading...');
     // Store the SQLite database in the user's writable data directory
     const userDataPath = electron_1.app.getPath('userData');
     const dbDir = node_path_1.default.join(userDataPath, 'database');
     if (!(0, node_fs_1.existsSync)(dbDir))
         (0, node_fs_1.mkdirSync)(dbDir, { recursive: true });
     process.env.DATABASE_DIR = dbDir;
+    // Google Drive OAuth credentials — injected at build time from gdrive-credentials.ts
+    // (that file is gitignored; CI generates it from repository secrets)
+    const { GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET } = await Promise.resolve().then(() => __importStar(require('./gdrive-credentials')));
+    process.env.GDRIVE_CLIENT_ID = GDRIVE_CLIENT_ID;
+    process.env.GDRIVE_CLIENT_SECRET = GDRIVE_CLIENT_SECRET;
+    // Generate a per-installation JWT secret (created once, persisted to userData)
+    const secretPath = node_path_1.default.join(userDataPath, '.jwt-secret');
+    let jwtSecret;
+    if ((0, node_fs_1.existsSync)(secretPath)) {
+        jwtSecret = (0, node_fs_1.readFileSync)(secretPath, 'utf-8').trim();
+    }
+    else {
+        jwtSecret = (0, node_crypto_1.randomBytes)(48).toString('hex');
+        (0, node_fs_1.writeFileSync)(secretPath, jwtSecret, { mode: 0o600 }); // owner-read only
+    }
+    process.env.JWT_SECRET = jwtSecret;
     // Run the NestJS backend in-process — Electron has Node.js built in,
     // no need to spawn an external node process.
     try {
+        console.log('[Backend] Calling require on:', backendDist);
         require(backendDist);
+        console.log('[Backend] require() returned (NestJS bootstrapping in background)');
     }
     catch (err) {
-        console.error('Failed to start backend:', err);
+        console.error('[Backend] Failed to start. Error:', err);
+        console.error('[Backend] Stack:', err?.stack);
     }
 }
+// ─── BACKEND HEALTH CHECK ─────────────────────────────────────────────────────
+async function waitForBackend(maxWaitMs = 15000) {
+    const start = Date.now();
+    while (Date.now() - start < maxWaitMs) {
+        try {
+            const res = await electron_1.net.fetch('http://localhost:3001/health');
+            if (res.ok) {
+                console.log('[Backend] Health check passed after', Date.now() - start, 'ms');
+                return true;
+            }
+        }
+        catch {
+            // backend not ready yet — keep retrying
+        }
+        await new Promise((r) => setTimeout(r, 500));
+    }
+    console.error('[Backend] Did not respond within', maxWaitMs, 'ms');
+    return false;
+}
+// ─── WINDOW ───────────────────────────────────────────────────────────────────
 function createWindow() {
     const preloadPath = isDev
         ? node_path_1.default.join(process.cwd(), 'electron', 'preload.js')
         : node_path_1.default.join(__dirname, 'preload.js');
-    const win = new electron_1.BrowserWindow({
+    mainWindow = new electron_1.BrowserWindow({
         width: 1280,
         height: 800,
         minWidth: 1024,
@@ -46,20 +177,32 @@ function createWindow() {
             preload: preloadPath,
         },
     });
+    mainWindow.webContents.openDevTools();
     if (isDev) {
-        win.loadURL('http://localhost:5173');
+        mainWindow.loadURL('http://localhost:5173');
     }
     else {
         const indexPath = node_path_1.default.join(process.resourcesPath, 'frontend', 'dist', 'index.html');
-        win.loadFile(indexPath);
+        mainWindow.loadFile(indexPath);
     }
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
 }
+// ─── APP LIFECYCLE ────────────────────────────────────────────────────────────
 electron_1.app.whenReady().then(async () => {
     await startBackend();
-    // Give NestJS a moment to bind its port before opening the window
-    if (!isDev)
-        await new Promise((r) => setTimeout(r, 1500));
-    createWindow();
+    if (!isDev) {
+        const backendReady = await waitForBackend();
+        createWindow();
+        if (!backendReady) {
+            mainWindow?.loadURL('data:text/html,<html><body style="font-family:sans-serif;padding:40px;color:%23333"><h2>&#9888; Backend failed to start</h2><p>The backend server did not respond in time. Please restart the application.</p><p>Check application logs for details.</p></body></html>');
+        }
+    }
+    else {
+        createWindow();
+    }
+    scheduleCloudBackupCheck();
 });
 electron_1.app.on('window-all-closed', () => {
     if (process.platform !== 'darwin')

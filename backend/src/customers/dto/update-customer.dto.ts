@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class UpdateCustomerDto {
   @IsOptional()
@@ -16,4 +16,36 @@ export class UpdateCustomerDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  vehicle_number?: string;
+
+  @IsOptional()
+  @IsString()
+  cnic?: string;
+
+  @IsOptional()
+  @IsString()
+  relation_with_me?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  is_dealer?: boolean;
+
+  @IsOptional()
+  @IsString()
+  image_url?: string;
+
+  @IsOptional()
+  @IsString()
+  gmail?: string;
+
+  @IsOptional()
+  @IsString()
+  facebook_link?: string;
+
+  @IsOptional()
+  @IsString()
+  social_link?: string;
 }

@@ -11,9 +11,12 @@ import { CustomerLedger } from './customers/entities/customer-ledger.entity';
 import { InstallmentPlan } from './customers/entities/installment-plan.entity';
 import { InstallmentDue } from './customers/entities/installment-due.entity';
 import { InstallmentPayment } from './customers/entities/installment-payment.entity';
+import { CustomerManualCredit } from './customers/entities/customer-manual-credit.entity';
 import { Inventory } from './inventory/entities/inventory.entity';
 import { InventoryModule } from './inventory/inventory.module';
 import { MillPayment } from './mill-payments/entities/mill-payment.entity';
+import { SupplierOpeningBalance } from './mill-payments/entities/supplier-opening-balance.entity';
+import { SupplierManualPayment } from './mill-payments/entities/supplier-manual-payment.entity';
 import { MillPaymentsModule } from './mill-payments/mill-payments.module';
 import { Payment } from './payments/entities/payment.entity';
 import { PaymentsModule } from './payments/payments.module';
@@ -55,10 +58,13 @@ import { Expense } from './expenses/entities/expense.entity';
         SaleItem,
         Payment,
         MillPayment,
+        SupplierOpeningBalance,
+        SupplierManualPayment,
         CustomerLedger,
         InstallmentPlan,
         InstallmentDue,
         InstallmentPayment,
+        CustomerManualCredit,
         AdvancePayment,
         AdvancePaymentItem,
         Attachment,

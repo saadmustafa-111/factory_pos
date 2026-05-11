@@ -5,8 +5,8 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
-  Put,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -29,7 +29,7 @@ export class SuppliersController {
     return this.suppliersService.create(payload);
   }
 
-  @Put(':id')
+  @Patch(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() payload: UpdateSupplierDto) {
     return this.suppliersService.update(id, payload);
   }

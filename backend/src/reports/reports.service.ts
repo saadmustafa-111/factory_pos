@@ -51,6 +51,9 @@ export class ReportsService {
     const todayEnd = new Date(todayStart);
     todayEnd.setHours(23, 59, 59, 999);
 
+    // Use local calendar date (not UTC) for DATE() comparisons in SQLite
+    const todayLocalStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
     const [todaySales, monthSales, allSales, todayStockRow, todayMillRow, todayExpenseRow, todayExpenseCats] = await Promise.all([
       this.salesRepo
         .createQueryBuilder('sale')
@@ -79,14 +82,14 @@ export class ReportsService {
       this.expenseRepo
         .createQueryBuilder('exp')
         .select('COALESCE(SUM(exp.amount), 0)', 'total')
-        .where('DATE(exp.date) = :today', { today: todayStart.toISOString().slice(0, 10) })
+        .where('DATE(exp.date) = :today', { today: todayLocalStr })
         .getRawOne<{ total: string }>(),
       // Today's manual expenses broken down by category
       this.expenseRepo
         .createQueryBuilder('exp')
         .select('exp.category', 'category')
         .addSelect('COALESCE(SUM(exp.amount), 0)', 'total')
-        .where('DATE(exp.date) = :today', { today: todayStart.toISOString().slice(0, 10) })
+        .where('DATE(exp.date) = :today', { today: todayLocalStr })
         .groupBy('exp.category')
         .getRawMany<{ category: string; total: string }>(),
     ]);
@@ -193,9 +196,23 @@ export class ReportsService {
     const items = await qb.getMany();
     const avgCostMap = await this.getAverageCostMap();
 
+    // Fetch total expenses for the same period
+    const expQb = this.expenseRepo.createQueryBuilder('exp');
+    if (from) expQb.andWhere('DATE(exp.date) >= :from', { from });
+    if (to) expQb.andWhere('DATE(exp.date) <= :to', { to });
+    const expenseRows = await expQb.getMany();
+    const totalExpenses = expenseRows.reduce((s, e) => s + Number(e.amount), 0);
+
+    // Pre-compute items subtotal per sale (for proportional discount distribution)
+    const saleSubtotals = new Map<number, number>();
+    items.forEach((item) => {
+      const cur = saleSubtotals.get(item.sale_id) ?? 0;
+      saleSubtotals.set(item.sale_id, cur + item.total_price);
+    });
+
     const byProduct = new Map<
       number,
-      { product: string; quantity: number; sales: number; cost: number; profit: number }
+      { product: string; quantity: number; gross_sales: number; discount: number; sales: number; cost: number; profit: number }
     >();
 
     items.forEach((item) => {
@@ -203,26 +220,44 @@ export class ReportsService {
       const existing = byProduct.get(productId) ?? {
         product: item.product.name,
         quantity: 0,
+        gross_sales: 0,
+        discount: 0,
         sales: 0,
         cost: 0,
         profit: 0,
       };
 
+      // Distribute sale-level discount proportionally to this item
+      const saleDiscount = item.sale?.discount ?? 0;
+      const saleSubtotal = saleSubtotals.get(item.sale_id) ?? 0;
+      const itemDiscount = saleSubtotal > 0 ? saleDiscount * (item.total_price / saleSubtotal) : 0;
+      const netSales = item.total_price - itemDiscount;
+
       const avgCost = avgCostMap.get(productId) ?? 0;
       const cost = avgCost * item.quantity;
       existing.quantity += item.quantity;
-      existing.sales += item.total_price;
+      existing.gross_sales += item.total_price;
+      existing.discount += itemDiscount;
+      existing.sales += netSales;
       existing.cost += cost;
-      existing.profit += item.total_price - cost;
+      existing.profit += netSales - cost;
 
       byProduct.set(productId, existing);
     });
 
-    return Array.from(byProduct.values());
+    const rows = Array.from(byProduct.values());
+    const grossProfit = rows.reduce((s, r) => s + r.profit, 0);
+
+    return {
+      rows,
+      totalExpenses,
+      grossProfit,
+      netProfit: grossProfit - totalExpenses,
+    };
   }
 
   async totalProfit() {
-    const rows = await this.profit();
-    return rows.reduce((sum, row) => sum + row.profit, 0);
+    const result = await this.profit();
+    return result.netProfit;
   }
 }

@@ -46,6 +46,14 @@ jobs:
         run: npm run build
 
       # ── Electron ──────────────────────────────────────────────────────────
+      - name: Generate Google Drive credentials file
+        shell: bash
+        run: |
+          cat > electron/gdrive-credentials.ts <<'EOF'
+          export const GDRIVE_CLIENT_ID = '${{ secrets.GDRIVE_CLIENT_ID }}';
+          export const GDRIVE_CLIENT_SECRET = '${{ secrets.GDRIVE_CLIENT_SECRET }}';
+          EOF
+
       - name: Compile Electron TypeScript
         run: npx tsc --project electron/tsconfig.json
 

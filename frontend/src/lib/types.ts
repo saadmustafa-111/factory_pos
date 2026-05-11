@@ -6,6 +6,7 @@ export interface Product {
   category: 'sariya' | 'rings' | 'wire' | 'cement';
   type: 'thin' | 'thick' | 'brand_name' | 'standard';
   unit: 'kg' | 'piece' | 'bag' | 'bundle' | 'maund' | 'ton';
+  discount?: number;
 }
 
 export interface CementBrand {

@@ -25,6 +25,31 @@ export class Customer {
   @Column({ nullable: true })
   notes: string;
 
+  // New fields for enhanced customer details
+  @Column({ default: false })
+  has_vehicle: boolean;
+
+  @Column({ nullable: true })
+  vehicle_number: string;
+
+  @Column({ nullable: true })
+  cnic: string;
+
+  @Column({ nullable: true })
+  relation_with_me: string;
+
+  @Column({ nullable: true })
+  image_url: string;
+
+  @Column({ nullable: true })
+  gmail: string;
+
+  @Column({ nullable: true })
+  facebook_link: string;
+
+  @Column({ nullable: true })
+  social_link: string;
+
   @CreateDateColumn()
   created_at: Date;
 

@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SaleItem } from '../sales/entities/sale-item.entity';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
-import { Inventory, InventoryPaymentStatus } from './entities/inventory.entity';
+import { Inventory, InventoryEntryType, InventoryPaymentStatus } from './entities/inventory.entity';
 
 @Injectable()
 export class InventoryService {
@@ -15,13 +15,18 @@ export class InventoryService {
   ) {}
 
   async create(payload: CreateInventoryDto) {
+    const isOpening = payload.entry_type === InventoryEntryType.OPENING;
     const totalCost = payload.quantity_received * payload.purchase_price_per_unit;
-    const paid = Math.max(0, payload.amount_paid_to_mill ?? 0);
-    const pending = Math.max(0, totalCost - paid);
-    const payment_status =
-      pending === 0
+    const paid = isOpening ? totalCost : Math.max(0, payload.amount_paid_to_mill ?? 0);
+    const receivedBack = isOpening ? 0 : Math.max(0, payload.amount_received_from_mill ?? 0);
+    const effectivePaid = Math.max(0, paid - receivedBack);
+    const pending = isOpening ? 0 : Math.max(0, totalCost - effectivePaid);
+    const overpayment = isOpening ? 0 : Math.max(0, effectivePaid - totalCost);
+    const payment_status = isOpening
+      ? InventoryPaymentStatus.PAID
+      : pending === 0
         ? InventoryPaymentStatus.PAID
-        : paid > 0
+        : effectivePaid > 0
           ? InventoryPaymentStatus.PARTIAL
           : InventoryPaymentStatus.PENDING;
 
@@ -29,15 +34,19 @@ export class InventoryService {
       ...payload,
       total_cost: totalCost,
       amount_paid_to_mill: paid,
+      amount_received_from_mill: receivedBack,
+      overpayment_amount: overpayment,
       amount_pending_to_mill: pending,
       payment_status,
       date: new Date(payload.date),
+      pickup_date: payload.pickup_date ? new Date(payload.pickup_date) : undefined,
+      delivery_date: payload.delivery_date ? new Date(payload.delivery_date) : undefined,
     });
     return this.inventoryRepo.save(entry);
   }
 
   history() {
-    return this.inventoryRepo.find({ order: { date: 'DESC' } });
+    return this.inventoryRepo.find({ order: { date: 'DESC', id: 'DESC' } });
   }
 
   async delete(id: number) {

@@ -49,84 +49,43 @@ export class SeedService implements OnApplicationBootstrap {
       }
     }
 
+    // Auto-migrate: update any sariya products still using maund → kg
+    await this.productsRepo
+      .createQueryBuilder()
+      .update()
+      .set({ unit: ProductUnit.KG })
+      .where('category = :cat AND unit = :old', { cat: ProductCategory.SARIYA, old: ProductUnit.MAUND })
+      .execute();
+
     const productCount = await this.productsRepo.count();
     const supplierCount = await this.suppliersRepo.count();
     const brandCount = await this.brandsRepo.count();
 
     if (supplierCount === 0) {
-      await this.suppliersRepo.save([
-        this.suppliersRepo.create({ name: 'Fauji Cement Company', is_active: true }),
-        this.suppliersRepo.create({ name: 'Bestway Cement', is_active: true }),
-        this.suppliersRepo.create({ name: 'Askari Cement', is_active: true }),
-        this.suppliersRepo.create({ name: 'White Cement Co.', is_active: true }),
-        this.suppliersRepo.create({ name: 'Local Steel Mill', is_active: true }),
-      ]);
+      // No default suppliers — they will be added manually by the user
     }
 
     if (brandCount === 0) {
-      const suppliers = await this.suppliersRepo.find();
-      const byName = new Map(suppliers.map((s) => [s.name, s.id]));
       await this.brandsRepo.save([
-        this.brandsRepo.create({
-          brand_name: 'Fauji',
-          supplier_id: byName.get('Fauji Cement Company'),
-          is_active: true,
-        }),
-        this.brandsRepo.create({
-          brand_name: 'Bestway',
-          supplier_id: byName.get('Bestway Cement'),
-          is_active: true,
-        }),
-        this.brandsRepo.create({
-          brand_name: 'Askari',
-          supplier_id: byName.get('Askari Cement'),
-          is_active: true,
-        }),
-        this.brandsRepo.create({
-          brand_name: 'White Cement',
-          supplier_id: byName.get('White Cement Co.'),
-          is_active: true,
-        }),
+        this.brandsRepo.create({ brand_name: 'Best Way', is_active: true }),
+        this.brandsRepo.create({ brand_name: 'Fauji', is_active: true }),
+        this.brandsRepo.create({ brand_name: 'Maple Leaf White', is_active: true }),
+        this.brandsRepo.create({ brand_name: 'Best Way White', is_active: true }),
       ]);
     }
 
     if (productCount === 0) {
       await this.productsRepo.save([
-        this.productsRepo.create({
-          name: 'Sariya Thin',
-          category: ProductCategory.SARIYA,
-          type: 'thin',
-          unit: ProductUnit.MAUND,
-          is_active: true,
-        }),
-        this.productsRepo.create({
-          name: 'Sariya Thick',
-          category: ProductCategory.SARIYA,
-          type: 'thick',
-          unit: ProductUnit.MAUND,
-          is_active: true,
-        }),
-        this.productsRepo.create({
-          name: 'Rings',
-          category: ProductCategory.RINGS,
-          type: 'standard',
-          unit: ProductUnit.PIECE,
-          is_active: true,
-        }),
-        this.productsRepo.create({
-          name: 'Steel Wire',
-          category: ProductCategory.WIRE,
-          type: 'standard',
-          unit: ProductUnit.KG,
-          is_active: true,
-        }),
-        this.productsRepo.create({
-          name: 'Cement',
-          category: ProductCategory.CEMENT,
-          type: 'brand',
-          unit: ProductUnit.BAG,
-          is_active: true,
-        }),
+        this.productsRepo.create({ name: 'Sariya 3/4"', category: ProductCategory.SARIYA, type: '3/4"', unit: ProductUnit.KG, is_active: true }),
+        this.productsRepo.create({ name: 'Sariya 5/8"', category: ProductCategory.SARIYA, type: '5/8"', unit: ProductUnit.KG, is_active: true }),
+        this.productsRepo.create({ name: 'Sariya 1/2"', category: ProductCategory.SARIYA, type: '1/2"', unit: ProductUnit.KG, is_active: true }),
+        this.productsRepo.create({ name: 'Sariya 3/8"', category: ProductCategory.SARIYA, type: '3/8"', unit: ProductUnit.KG, is_active: true }),
+        this.productsRepo.create({ name: 'Sariya 1/4"', category: ProductCategory.SARIYA, type: '1/4"', unit: ProductUnit.KG, is_active: true }),
+        this.productsRepo.create({ name: 'Cement', category: ProductCategory.CEMENT, type: 'brand', unit: ProductUnit.BAG, is_active: true }),
+        this.productsRepo.create({ name: 'Ring', category: ProductCategory.RINGS, type: 'standard', unit: ProductUnit.PIECE, is_active: true }),
+        this.productsRepo.create({ name: 'Binding Wire', category: ProductCategory.WIRE, type: 'standard', unit: ProductUnit.KG, is_active: true }),
+        this.productsRepo.create({ name: 'Iron Nail', category: ProductCategory.WIRE, type: 'nail', unit: ProductUnit.KG, is_active: true }),
+        this.productsRepo.create({ name: 'Tile Bond', category: ProductCategory.WIRE, type: 'tile_bond', unit: ProductUnit.BAG, is_active: true }),
       ]);
     }
   }

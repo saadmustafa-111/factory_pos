@@ -44,6 +44,24 @@ export class ProductsService {
     return this.productsRepo.save(product);
   }
 
+  async updateProduct(id: number, body: { name?: string; category?: string; type?: string; unit?: string }) {
+    const product = await this.productsRepo.findOne({ where: { id } });
+    if (!product) throw new NotFoundException('Product not found');
+    if (body.name !== undefined) product.name = body.name;
+    if (body.category !== undefined) product.category = body.category as any;
+    if (body.type !== undefined) product.type = body.type;
+    if (body.unit !== undefined) product.unit = body.unit as any;
+    return this.productsRepo.save(product);
+  }
+
+  async updateCementBrand(id: number, payload: { brand_name?: string; supplier_id?: number }) {
+    const brand = await this.brandsRepo.findOne({ where: { id } });
+    if (!brand) throw new NotFoundException('Brand not found');
+    if (payload.brand_name !== undefined) brand.brand_name = payload.brand_name;
+    if (payload.supplier_id !== undefined) brand.supplier_id = payload.supplier_id;
+    return this.brandsRepo.save(brand);
+  }
+
   async removeProduct(id: number) {
     const product = await this.productsRepo.findOne({ where: { id } });
     if (!product) throw new NotFoundException('Product not found');

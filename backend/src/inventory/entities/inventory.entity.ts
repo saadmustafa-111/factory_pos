@@ -18,6 +18,11 @@ export enum InventoryPaymentStatus {
   PENDING = 'pending',
 }
 
+export enum InventoryEntryType {
+  PURCHASE = 'purchase',
+  OPENING = 'opening',
+}
+
 @Entity('inventory')
 export class Inventory {
   @PrimaryGeneratedColumn()
@@ -49,6 +54,9 @@ export class Inventory {
   @Column({ nullable: true })
   supplier_id: number;
 
+  @Column({ type: 'text', default: InventoryEntryType.PURCHASE })
+  entry_type: InventoryEntryType;
+
   @Column('float')
   quantity_received: number;
 
@@ -69,6 +77,27 @@ export class Inventory {
 
   @Column({ type: 'datetime' })
   date: Date;
+
+  @Column({ type: 'datetime', nullable: true })
+  pickup_date: Date;
+
+  @Column({ type: 'datetime', nullable: true })
+  delivery_date: Date;
+
+  @Column({ nullable: true })
+  delivery_location: string;
+
+  @Column({ nullable: true })
+  transport_details: string;
+
+  @Column({ type: 'int', nullable: true })
+  credit_days: number;
+
+  @Column('float', { default: 0 })
+  amount_received_from_mill: number;
+
+  @Column('float', { default: 0 })
+  overpayment_amount: number;
 
   @Column({ nullable: true })
   notes: string;

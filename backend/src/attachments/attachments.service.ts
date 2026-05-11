@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -14,7 +15,22 @@ import { Attachment } from './entities/attachment.entity';
 @Injectable()
 export class AttachmentsService implements OnModuleInit {
   private readonly logger = new Logger(AttachmentsService.name);
-  private storageDir: string;
+  private storageDir!: string;
+
+  /** Permitted entity types — prevents path traversal via crafted entityType values */
+  private static readonly ALLOWED_ENTITY_TYPES = new Set([
+    'customer',
+    'sale',
+    'inventory',
+    'supplier',
+    'payment',
+  ]);
+
+  private assertValidEntityType(entityType: string): void {
+    if (!AttachmentsService.ALLOWED_ENTITY_TYPES.has(entityType)) {
+      throw new BadRequestException(`Invalid entityType: ${entityType}`);
+    }
+  }
 
   constructor(
     @InjectRepository(Attachment)
@@ -40,6 +56,7 @@ export class AttachmentsService implements OnModuleInit {
     entityType: string,
     entityId: number,
   ): Promise<Attachment> {
+    this.assertValidEntityType(entityType);
     const ext = path.extname(file.originalname);
     const filename = `${uuidv4()}${ext}`;
 
@@ -67,6 +84,7 @@ export class AttachmentsService implements OnModuleInit {
 
   /** List all attachments for a given entity record. */
   findByEntity(entityType: string, entityId: number): Promise<Attachment[]> {
+    this.assertValidEntityType(entityType);
     return this.repo.find({
       where: { entityType, entityId },
       order: { createdAt: 'DESC' },

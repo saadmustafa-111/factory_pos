@@ -67,7 +67,9 @@ export class SalesService {
       })),
     );
 
-    const totalAmount = items.reduce((sum, item) => sum + item.total_price, 0);
+    const loadingCharges = Number(payload.loading_charges || 0);
+    const discount = Number(payload.discount || 0);
+    const totalAmount = items.reduce((sum, item) => sum + item.total_price, 0) + loadingCharges - discount;
     const paidAmount = Math.max(0, payload.paid_amount || 0);
     const pendingAmount = Math.max(0, totalAmount - paidAmount);
 
@@ -92,6 +94,8 @@ export class SalesService {
       due_date: dueDate,
       credit_days: payload.credit_days,
       total_amount: totalAmount,
+      loading_charges: loadingCharges,
+      discount: discount,
       paid_amount: paidAmount,
       pending_amount: pendingAmount,
       status,
@@ -112,17 +116,17 @@ export class SalesService {
     if (status === 'overdue') {
       return this.salesRepo.find({
         where: { is_overdue: true },
-        order: { date: 'DESC' },
+        order: { date: 'DESC', id: 'DESC' },
       });
     }
 
     if (!status || status === 'all') {
-      return this.salesRepo.find({ order: { date: 'DESC' } });
+      return this.salesRepo.find({ order: { date: 'DESC', id: 'DESC' } });
     }
 
     return this.salesRepo.find({
       where: { status: status as SaleStatus },
-      order: { date: 'DESC' },
+      order: { date: 'DESC', id: 'DESC' },
     });
   }
 

@@ -50,6 +50,12 @@ export class Sale {
   @Column('float')
   total_amount: number;
 
+  @Column('float', { default: 0 })
+  loading_charges: number;
+
+  @Column('float', { default: 0 })
+  discount: number;
+
   @Column('float')
   paid_amount: number;
 

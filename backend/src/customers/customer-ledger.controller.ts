@@ -25,6 +25,16 @@ export class CustomerLedgerController {
     return this.ledgerService.getLedgerList(type, status);
   }
 
+  @Get('ledger')
+  getSalesLedgerSummary() {
+    return this.ledgerService.getSalesLedgerSummary();
+  }
+
+  @Get(':id/ledger')
+  getCustomerSalesLedger(@Param('id', ParseIntPipe) id: number) {
+    return this.ledgerService.getCustomerSalesLedger(id);
+  }
+
   @Get('overdue-summary')
   getOverdueSummary() {
     return this.ledgerService.getOverdueSummary();
@@ -86,5 +96,19 @@ export class CustomerLedgerController {
     },
   ) {
     return this.ledgerService.setCustomerType(id, body);
+  }
+
+  @Post(':id/manual-credit')
+  addManualCredit(
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    body: {
+      item_description: string;
+      amount: number;
+      credit_date: string;
+      notes?: string;
+    },
+  ) {
+    return this.ledgerService.addManualCredit(id, body);
   }
 }

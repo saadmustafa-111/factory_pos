@@ -59,6 +59,14 @@ export class CreateSaleDto {
   @IsNumber()
   paid_amount: number;
 
+  @IsOptional()
+  @IsNumber()
+  loading_charges?: number;
+
+  @IsOptional()
+  @IsNumber()
+  discount?: number;
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

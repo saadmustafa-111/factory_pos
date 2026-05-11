@@ -32,6 +32,19 @@ export class Supplier {
   @Column({ default: true })
   is_active: boolean;
 
+  // New fields for enhanced supplier details
+  @Column({ nullable: true })
+  dealer_name: string;
+
+  @Column({ nullable: true })
+  business_name: string;
+
+  @Column({ nullable: true })
+  cnic: string;
+
+  @Column({ nullable: true })
+  image_url: string;
+
   @CreateDateColumn()
   created_at: Date;
 

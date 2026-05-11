@@ -4,3 +4,18 @@ build
 *.log
 .env
 .DS_Store
+
+# SQLite database files (runtime data — never commit)
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Electron credentials — generated from secrets, never commit
+electron/gdrive-credentials.ts
+electron/gdrive-credentials.js
+
+# Build outputs
+dist-electron/
+backend/attachments/
+backend/backups/
+backend/backup-meta.json

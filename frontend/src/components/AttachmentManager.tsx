@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Paperclip, Upload, Trash2, Download, X, FileText } from 'lucide-react';
+import { Paperclip, Upload, Trash2, Download, X, Eye } from 'lucide-react';
 import { Button } from './ui/button';
 import { Modal } from './ui/modal';
 import { api } from '../lib/api';
@@ -18,9 +18,7 @@ interface Attachment {
 interface Props {
   entityType: string;
   entityId: number;
-  /** Short label shown in the modal title, e.g. "Sale #12" */
   label?: string;
-  /** Extra classes on the trigger button */
   className?: string;
 }
 
@@ -38,11 +36,89 @@ function fileIcon(mimetype: string) {
   return '📎';
 }
 
+function isViewable(mimetype: string) {
+  return mimetype.startsWith('image/') || mimetype === 'application/pdf';
+}
+
+// ── Inline preview overlay ────────────────────────────────────────────────────
+function PreviewOverlay({ att, onClose, onDownload }: {
+  att: Attachment;
+  onClose: () => void;
+  onDownload: (att: Attachment) => void;
+}) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    api.get(`/attachments/${att.id}/file`, { responseType: 'blob' }).then(res => {
+      if (!active) return;
+      setBlobUrl(URL.createObjectURL(res.data as Blob));
+      setLoading(false);
+    }).catch(() => setLoading(false));
+    return () => { active = false; };
+  }, [att.id]);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col bg-black/90" onClick={onClose}>
+      {/* Top bar */}
+      <div
+        className="flex items-center justify-between px-4 py-3 bg-black/60 shrink-0"
+        onClick={e => e.stopPropagation()}
+      >
+        <p className="truncate text-sm font-semibold text-white max-w-[60vw]">{att.originalName}</p>
+        <div className="flex items-center gap-2 ml-4">
+          <button
+            onClick={() => onDownload(att)}
+            className="flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-sm text-white hover:bg-white/25 transition-colors"
+          >
+            <Download className="h-4 w-4" /> Download
+          </button>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-white hover:bg-white/25 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex flex-1 items-center justify-center overflow-hidden p-4" onClick={onClose}>
+        {loading && (
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+        )}
+        {!loading && blobUrl && att.mimetype.startsWith('image/') && (
+          <img
+            src={blobUrl}
+            alt={att.originalName}
+            className="max-h-full max-w-full rounded-xl object-contain shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          />
+        )}
+        {!loading && blobUrl && att.mimetype === 'application/pdf' && (
+          <iframe
+            src={blobUrl}
+            title={att.originalName}
+            className="h-full w-full max-w-4xl rounded-xl bg-white shadow-2xl"
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+          />
+        )}
+        {!loading && !blobUrl && (
+          <p className="text-white/60 text-sm">Could not load preview.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 export function AttachmentManager({ entityType, entityId, label, className }: Props) {
   const [open, setOpen] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [preview, setPreview] = useState<Attachment | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
@@ -56,10 +132,16 @@ export function AttachmentManager({ entityType, entityId, label, className }: Pr
     }
   };
 
+  // Load count on mount so badge shows without opening
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityType, entityId]);
+
   useEffect(() => {
     if (open) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, entityType, entityId]);
+  }, [open]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -78,25 +160,20 @@ export function AttachmentManager({ entityType, entityId, label, className }: Pr
       setError(err?.response?.data?.message ?? 'Upload failed');
     } finally {
       setUploading(false);
-      // Reset so the same file can be re-selected
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
   const handleDownload = async (att: Attachment) => {
     try {
-      const response = await api.get(`/attachments/${att.id}/file`, {
-        responseType: 'blob',
-      });
-      const url = URL.createObjectURL(response.data);
+      const response = await api.get(`/attachments/${att.id}/file`, { responseType: 'blob' });
+      const url = URL.createObjectURL(response.data as Blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = att.originalName;
       a.click();
       URL.revokeObjectURL(url);
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
   };
 
   const handleDelete = async (id: number) => {
@@ -104,9 +181,7 @@ export function AttachmentManager({ entityType, entityId, label, className }: Pr
     try {
       await api.delete(`/attachments/${id}`);
       setAttachments((prev) => prev.filter((a) => a.id !== id));
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
   };
 
   const title = label ? `Attachments — ${label}` : 'Attachments';
@@ -127,6 +202,15 @@ export function AttachmentManager({ entityType, entityId, label, className }: Pr
           </span>
         )}
       </button>
+
+      {/* Preview overlay */}
+      {preview && (
+        <PreviewOverlay
+          att={preview}
+          onClose={() => setPreview(null)}
+          onDownload={handleDownload}
+        />
+      )}
 
       {/* Modal */}
       <Modal open={open} title={title} onClose={() => setOpen(false)}>
@@ -173,6 +257,15 @@ export function AttachmentManager({ entityType, entityId, label, className }: Pr
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
+                    {isViewable(att.mimetype) && (
+                      <button
+                        onClick={() => setPreview(att)}
+                        className="rounded-lg p-2 text-industrial-500 hover:bg-industrial-100 hover:text-accent-primary transition-colors"
+                        title="View"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDownload(att)}
                       className="rounded-lg p-2 text-industrial-500 hover:bg-industrial-100 hover:text-accent-primary transition-colors"

@@ -3,6 +3,7 @@ import {
   BookOpen,
   Boxes,
   Building2,
+  Calculator,
   DatabaseBackup,
   Languages,
   LayoutDashboard,
@@ -11,6 +12,8 @@ import {
   Receipt,
   Settings,
   ShoppingCart,
+  Tag,
+  Truck,
   Users,
   Wallet,
 } from 'lucide-react';
@@ -28,11 +31,15 @@ export function AppShell() {
     { to: '/inventory', label: t.inventory, icon: Boxes },
     { to: '/sales', label: t.sales, icon: ShoppingCart },
     { to: '/customers', label: t.customers, icon: Users },
+    { to: '/customer-ledger', label: isUrdu ? 'کسٹمر کھاتہ' : 'Customer Ledger', icon: Users },
     { to: '/udhar-book', label: isUrdu ? 'اُدھار بُک' : 'Udhar Book', icon: BookOpen },
     { to: '/daily-register', label: t.dailyRegister, icon: Receipt },
-    { to: '/mill-ledger', label: t.millLedger, icon: Building2 },
+    { to: '/mill-ledger', label: isUrdu ? 'ڈیلر کھاتہ' : 'Dealer Ledger', icon: Building2 },
     { to: '/advance-payments', label: t.advancePayments, icon: Package },
+    { to: '/suppliers', label: isUrdu ? 'ڈیلرز' : 'Dealers', icon: Truck },
+    { to: '/products', label: isUrdu ? 'پروڈکٹس' : 'Products', icon: Tag },
     { to: '/expenses', label: t.expenses, icon: Wallet },
+    { to: '/calculator', label: isUrdu ? 'کیلکولیٹر' : 'Calculator', icon: Calculator },
     { to: '/reports', label: t.reports, icon: BarChart3 },
     { to: '/settings', label: t.settings, icon: Settings },
     { to: '/backup', label: t.backupRestore, icon: DatabaseBackup },
@@ -49,11 +56,54 @@ export function AppShell() {
       {/* Sidebar */}
       <aside className={`fixed left-0 top-0 z-40 flex h-screen w-64 flex-col industrial-sidebar ${isUrdu ? 'order-last right-0 left-auto' : ''}`}>
         {/* Logo */}
-        <div className="flex items-center gap-3 border-b border-industrial-700 px-6 py-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-primary shadow-industrial">
-            <Receipt className="h-6 w-6 text-white" />
+        <div className="flex flex-col gap-3 border-b border-industrial-700 px-4 py-4">
+          <div className="flex items-center gap-3">
+            {/* Warehouse / dealer shop logo mark */}
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl shadow-xl"
+              style={{ background: 'linear-gradient(160deg, #1e293b 0%, #0f172a 100%)', border: '1px solid rgba(251,191,36,0.3)' }}>
+              <svg viewBox="0 0 44 44" className="h-10 w-10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* Roof / gable */}
+                <path d="M4 20 L22 6 L40 20" stroke="#fbbf24" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round"/>
+                {/* Building body */}
+                <rect x="6" y="20" width="32" height="18" fill="none" stroke="#e2e8f0" strokeWidth="1.6"/>
+                {/* Left steel column */}
+                <rect x="6" y="20" width="3" height="18" fill="#e2e8f0" fillOpacity="0.9"/>
+                {/* Right steel column */}
+                <rect x="35" y="20" width="3" height="18" fill="#e2e8f0" fillOpacity="0.9"/>
+                {/* Centre column */}
+                <rect x="20.5" y="20" width="3" height="18" fill="#94a3b8" fillOpacity="0.5"/>
+                {/* Left window */}
+                <rect x="10" y="24" width="7" height="5" rx="0.5" fill="none" stroke="#94a3b8" strokeWidth="1.2"/>
+                {/* Right window */}
+                <rect x="27" y="24" width="7" height="5" rx="0.5" fill="none" stroke="#94a3b8" strokeWidth="1.2"/>
+                {/* Double door (gold) */}
+                <rect x="17" y="30" width="10" height="8" fill="#fbbf24" fillOpacity="0.15" stroke="#fbbf24" strokeWidth="1.2"/>
+                <line x1="22" y1="30" x2="22" y2="38" stroke="#fbbf24" strokeWidth="0.8"/>
+                {/* Horizontal belt course */}
+                <line x1="6" y1="29.5" x2="38" y2="29.5" stroke="#475569" strokeWidth="0.8"/>
+              </svg>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className={`text-[13.5px] font-black leading-snug tracking-wide text-white ${isUrdu ? 'font-urdu' : ''}`}>
+                Haji Kala Khan Son's
+              </p>
+              <p className={`text-[10.5px] font-bold leading-tight tracking-[0.15em] text-amber-400 uppercase mt-0.5 whitespace-nowrap ${isUrdu ? 'font-urdu' : ''}`}>
+                Cement Steel Dealer
+              </p>
+            </div>
           </div>
-          <span className={`text-lg font-bold ${isUrdu ? 'font-urdu' : ''}`}>{t.appName}</span>
+          {/* Owner badge */}
+          <div className="flex items-center gap-2.5 rounded-lg border border-white/10 px-3 py-2" style={{ background: 'rgba(255,255,255,0.05)' }}>
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500/20 ring-1 ring-amber-400/40">
+              <span className="text-[10px] font-black text-amber-400">Z</span>
+            </div>
+            <div className="min-w-0">
+              <p className={`text-[12px] font-bold text-white leading-none ${isUrdu ? 'font-urdu' : ''}`}>
+                Zakaullah Masood
+              </p>
+              <p className="text-[10px] text-industrial-400 mt-0.5">Proprietor</p>
+            </div>
+          </div>
         </div>
 
         {/* Nav links */}

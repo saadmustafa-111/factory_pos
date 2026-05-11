@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, net, shell } from 'electron';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 
 const isDev = !app.isPackaged;
@@ -50,6 +51,13 @@ ipcMain.handle('show-open-dialog', async (_event, options: Electron.OpenDialogOp
 });
 
 ipcMain.handle('open-external', async (_event, url: string) => {
+  // Only allow safe http/https URLs — prevents XSS from opening arbitrary protocols
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return;
+  } catch {
+    return; // invalid URL
+  }
   await shell.openExternal(url);
 });
 
@@ -59,10 +67,13 @@ async function startBackend() {
   if (isDev) return;
 
   const backendDist = path.join(process.resourcesPath, 'backend', 'dist', 'main.js');
+  console.log('[Backend] resourcesPath:', process.resourcesPath);
+  console.log('[Backend] Looking for dist at:', backendDist);
   if (!existsSync(backendDist)) {
-    console.error('Backend dist not found at:', backendDist);
+    console.error('[Backend] dist NOT FOUND at:', backendDist);
     return;
   }
+  console.log('[Backend] dist found, loading...');
 
   // Store the SQLite database in the user's writable data directory
   const userDataPath = app.getPath('userData');
@@ -71,13 +82,53 @@ async function startBackend() {
 
   process.env.DATABASE_DIR = dbDir;
 
+  // Google Drive OAuth credentials — injected at build time from gdrive-credentials.ts
+  // (that file is gitignored; CI generates it from repository secrets)
+  const { GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET } = await import('./gdrive-credentials');
+  process.env.GDRIVE_CLIENT_ID = GDRIVE_CLIENT_ID;
+  process.env.GDRIVE_CLIENT_SECRET = GDRIVE_CLIENT_SECRET;
+
+  // Generate a per-installation JWT secret (created once, persisted to userData)
+  const secretPath = path.join(userDataPath, '.jwt-secret');
+  let jwtSecret: string;
+  if (existsSync(secretPath)) {
+    jwtSecret = readFileSync(secretPath, 'utf-8').trim();
+  } else {
+    jwtSecret = randomBytes(48).toString('hex');
+    writeFileSync(secretPath, jwtSecret, { mode: 0o600 }); // owner-read only
+  }
+  process.env.JWT_SECRET = jwtSecret;
+
   // Run the NestJS backend in-process — Electron has Node.js built in,
   // no need to spawn an external node process.
   try {
+    console.log('[Backend] Calling require on:', backendDist);
     require(backendDist);
+    console.log('[Backend] require() returned (NestJS bootstrapping in background)');
   } catch (err) {
-    console.error('Failed to start backend:', err);
+    console.error('[Backend] Failed to start. Error:', err);
+    console.error('[Backend] Stack:', (err as Error)?.stack);
   }
+}
+
+// ─── BACKEND HEALTH CHECK ─────────────────────────────────────────────────────
+
+async function waitForBackend(maxWaitMs = 15000): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    try {
+      const res = await net.fetch('http://localhost:3001/health');
+      if (res.ok) {
+        console.log('[Backend] Health check passed after', Date.now() - start, 'ms');
+        return true;
+      }
+    } catch {
+      // backend not ready yet — keep retrying
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  console.error('[Backend] Did not respond within', maxWaitMs, 'ms');
+  return false;
 }
 
 // ─── WINDOW ───────────────────────────────────────────────────────────────────
@@ -100,6 +151,8 @@ function createWindow() {
     },
   });
 
+  mainWindow.webContents.openDevTools();
+
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
   } else {
@@ -116,9 +169,17 @@ function createWindow() {
 
 app.whenReady().then(async () => {
   await startBackend();
-  // Give NestJS a moment to bind its port before opening the window
-  if (!isDev) await new Promise((r) => setTimeout(r, 1500));
-  createWindow();
+  if (!isDev) {
+    const backendReady = await waitForBackend();
+    createWindow();
+    if (!backendReady) {
+      mainWindow?.loadURL(
+        'data:text/html,<html><body style="font-family:sans-serif;padding:40px;color:%23333"><h2>&#9888; Backend failed to start</h2><p>The backend server did not respond in time. Please restart the application.</p><p>Check application logs for details.</p></body></html>',
+      );
+    }
+  } else {
+    createWindow();
+  }
   scheduleCloudBackupCheck();
 });
 

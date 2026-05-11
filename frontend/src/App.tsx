@@ -12,9 +12,13 @@ import Expenses from './pages/Expenses';
 import UdharBook from './pages/UdharBook';
 import DailyRegister from './pages/DailyRegister';
 import MillLedger from './pages/MillLedger';
+import CustomerLedger from './pages/CustomerLedger';
 import Reports from './pages/Reports';
 import Sales from './pages/Sales';
 import Settings from './pages/Settings';
+import CalculatorPage from './pages/Calculator';
+import SuppliersPage from './pages/Suppliers';
+import ProductsPage from './pages/Products';
 
 export default function App() {
   return (
@@ -34,13 +38,16 @@ export default function App() {
         <Route path="sales" element={<Sales />} />
         <Route path="customers" element={<Customers />} />
         <Route path="customers/:id" element={<CustomerDetail />} />
-        <Route path="customer-ledger" element={<Navigate to="/customers" replace />} />
+        <Route path="customer-ledger" element={<CustomerLedger />} />
         <Route path="advance-payments" element={<AdvancePayments />} />
         <Route path="expenses" element={<Expenses />} />
+        <Route path="calculator" element={<CalculatorPage />} />
         <Route path="udhar-book" element={<UdharBook />} />
         <Route path="daily-register" element={<DailyRegister />} />
         <Route path="mill-ledger" element={<MillLedger />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="suppliers" element={<SuppliersPage />} />
+        <Route path="products" element={<ProductsPage />} />
         <Route path="settings" element={<Settings />} />
         <Route path="backup" element={<BackupRestore />} />
       </Route>

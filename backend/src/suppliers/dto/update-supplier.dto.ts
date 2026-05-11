@@ -24,4 +24,20 @@ export class UpdateSupplierDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
+
+  @IsOptional()
+  @IsString()
+  dealer_name?: string;
+
+  @IsOptional()
+  @IsString()
+  business_name?: string;
+
+  @IsOptional()
+  @IsString()
+  cnic?: string;
+
+  @IsOptional()
+  @IsString()
+  image_url?: string;
 }
