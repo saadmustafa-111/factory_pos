@@ -4,9 +4,11 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { api } from '../lib/api';
 import { useLang } from '../lib/i18n';
+import { useFontSize, type SizeStep } from '../lib/font-size';
 
 export default function Settings() {
   const { t, isUrdu } = useLang();
+  const { settings: fs, setTableSize, setHeadingSize, setBodySize, reset: resetFs } = useFontSize();
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -176,6 +178,164 @@ export default function Settings() {
         </div>
       </Card>
 
+      {/* Font Size Control */}
+      <Card>
+        <div className="border-b border-industrial-200 px-6 py-5 bg-industrial-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-primary/10">
+                {/* Aa icon */}
+                <svg className="h-5 w-5 text-accent-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-industrial-900">{isUrdu ? 'فونٹ سائز کنٹرول' : 'Font Size Control'}</h2>
+                <p className="text-sm text-industrial-500">{isUrdu ? 'ٹیبل، ہیڈنگ اور باڈی ٹیکسٹ کا سائز الگ الگ کنٹرول کریں' : 'Control table, heading and body text sizes independently'}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={resetFs}
+              className="flex items-center gap-1.5 rounded-lg border border-industrial-300 bg-white px-3 py-1.5 text-xs font-semibold text-industrial-600 hover:bg-industrial-100 transition-colors"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+              </svg>
+              {isUrdu ? 'ڈیفالٹ' : 'Reset'}
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          <FontSizeRow
+            icon={
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/>
+              </svg>
+            }
+            label={isUrdu ? 'ٹیبل ٹیکسٹ' : 'Table Text'}
+            desc={isUrdu ? 'تمام ٹیبلز کی قطاروں کا سائز' : 'Font size for all table rows'}
+            color="blue"
+            value={fs.table}
+            onChange={setTableSize}
+            preview={<span style={{ fontFamily: 'inherit' }}>Product &nbsp;|&nbsp; Qty &nbsp;|&nbsp; Price &nbsp;|&nbsp; Total</span>}
+          />
+
+          <div className="border-t border-industrial-100" />
+
+          <FontSizeRow
+            icon={
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 6h16M4 12h10M4 18h14"/>
+              </svg>
+            }
+            label={isUrdu ? 'صفحہ ہیڈنگ' : 'Page Headings'}
+            desc={isUrdu ? 'صفحے کے بڑے عنوانات' : 'h1, h2, h3 headings'}
+            color="amber"
+            value={fs.heading}
+            onChange={setHeadingSize}
+            preview={<strong style={{ fontFamily: 'inherit', fontWeight: 700 }}>Stock In &nbsp;·&nbsp; Sales &nbsp;·&nbsp; Dashboard</strong>}
+          />
+
+          <div className="border-t border-industrial-100" />
+
+          <FontSizeRow
+            icon={
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/>
+              </svg>
+            }
+            label={isUrdu ? 'باڈی ٹیکسٹ' : 'Body Text'}
+            desc={isUrdu ? 'لیبل، وضاحتیں اور فارم ٹیکسٹ' : 'Labels, descriptions and form text'}
+            color="green"
+            value={fs.body}
+            onChange={setBodySize}
+            preview={<span style={{ fontFamily: 'inherit' }}>Customer name &nbsp;·&nbsp; Enter username &nbsp;·&nbsp; Select dealer</span>}
+          />
+        </div>
+      </Card>
+
+    </div>
+  );
+}
+
+// ─── FontSizeRow sub-component ────────────────────────────────────────────────
+
+const STEPS: { value: SizeStep; label: string; px: string }[] = [
+  { value: 'xs',   label: 'XS', px: '10px' },
+  { value: 'sm',   label: 'S',  px: '12px' },
+  { value: 'base', label: 'M',  px: '13px' },
+  { value: 'lg',   label: 'L',  px: '15px' },
+  { value: 'xl',   label: 'XL', px: '17px' },
+];
+
+const COLOR_MAP: Record<string, { ring: string; active: string; dot: string }> = {
+  blue:  { ring: 'ring-blue-400',  active: 'bg-blue-600 text-white shadow-md',  dot: 'bg-blue-500' },
+  amber: { ring: 'ring-amber-400', active: 'bg-amber-500 text-white shadow-md', dot: 'bg-amber-500' },
+  green: { ring: 'ring-green-400', active: 'bg-green-600 text-white shadow-md', dot: 'bg-green-500' },
+};
+
+function FontSizeRow({
+  icon, label, desc, color, value, onChange, preview,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  desc: string;
+  color: string;
+  value: SizeStep;
+  onChange: (v: SizeStep) => void;
+  preview: React.ReactNode;
+}) {
+  const c = COLOR_MAP[color] ?? COLOR_MAP.blue;
+  const activeStep = STEPS.find((s) => s.value === value) ?? STEPS[2];
+
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+      {/* Label column */}
+      <div className="flex min-w-[180px] items-center gap-3">
+        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-industrial-100 text-industrial-500`}>
+          {icon}
+        </div>
+        <div>
+          <p className="text-sm font-bold text-industrial-900">{label}</p>
+          <p className="text-[11px] text-industrial-400">{desc}</p>
+        </div>
+      </div>
+
+      {/* Step buttons */}
+      <div className="flex items-center gap-1.5">
+        {STEPS.map((step) => {
+          const isActive = step.value === value;
+          return (
+            <button
+              key={step.value}
+              type="button"
+              onClick={() => onChange(step.value)}
+              title={step.px}
+              className={`relative flex h-9 w-12 flex-col items-center justify-center rounded-xl border-2 text-xs font-bold transition-all duration-150 ${
+                isActive
+                  ? `${c.active} border-transparent ring-2 ${c.ring} ring-offset-1`
+                  : 'border-industrial-200 bg-white text-industrial-600 hover:border-industrial-400 hover:bg-industrial-50'
+              }`}
+            >
+              <span className="leading-none" style={{ fontSize: step.value === 'xs' ? '9px' : step.value === 'sm' ? '10px' : step.value === 'base' ? '11px' : step.value === 'lg' ? '13px' : '15px' }}>
+                Aa
+              </span>
+              <span className="mt-0.5 text-[8px] font-black tracking-wider leading-none opacity-80">{step.label}</span>
+              {isActive && <span className={`absolute -bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full ${c.dot}`} />}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Live preview */}
+      <div className="flex-1 rounded-xl border border-industrial-200 bg-industrial-50 px-4 py-2.5 min-w-0 overflow-hidden">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-industrial-400 mb-1">Preview · {activeStep.px}</p>
+        <div className="text-industrial-700 truncate" style={{ fontSize: activeStep.px }}>
+          {preview}
+        </div>
+      </div>
     </div>
   );
 }

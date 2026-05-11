@@ -53,3 +53,62 @@ select {
 .industrial-sidebar-item-active {
   @apply bg-accent-primary text-white shadow-industrial;
 }
+
+/* ─── Font Size Control ──────────────────────────────────────────────────────
+   Driven by data-table-size / data-heading-size / data-body-size
+   attributes set on <html> by FontSizeProvider.
+   base = 13px table, 13px body, page-title keeps Tailwind defaults.
+─────────────────────────────────────────────────────────────────────────── */
+
+/* TABLE font size */
+html[data-table-size="xs"] table th,
+html[data-table-size="xs"] table td { font-size: 10px !important; }
+html[data-table-size="sm"] table th,
+html[data-table-size="sm"] table td { font-size: 11.5px !important; }
+/* base = 13px — matches existing text-xs/text-sm utilities, no override needed */
+html[data-table-size="lg"] table th,
+html[data-table-size="lg"] table td { font-size: 14.5px !important; }
+html[data-table-size="xl"] table th,
+html[data-table-size="xl"] table td { font-size: 16px !important; }
+
+/* HEADING font size — targets h1 (page titles) and h2/h3 (card headings) */
+html[data-heading-size="xs"] h1 { font-size: 1.125rem !important; }
+html[data-heading-size="sm"] h1 { font-size: 1.375rem !important; }
+/* base = 1.5rem (text-2xl) — no override needed */
+html[data-heading-size="lg"] h1 { font-size: 1.875rem !important; }
+html[data-heading-size="xl"] h1 { font-size: 2.25rem !important; }
+
+html[data-heading-size="xs"] h2 { font-size: 0.9375rem !important; }
+html[data-heading-size="sm"] h2 { font-size: 1.125rem !important; }
+/* base = 1.25rem (text-xl) — no override needed */
+html[data-heading-size="lg"] h2 { font-size: 1.5rem !important; }
+html[data-heading-size="xl"] h2 { font-size: 1.75rem !important; }
+
+html[data-heading-size="xs"] h3 { font-size: 0.8125rem !important; }
+html[data-heading-size="sm"] h3 { font-size: 0.9375rem !important; }
+/* base = text-sm (0.875rem) — no override needed */
+html[data-heading-size="lg"] h3 { font-size: 1.0625rem !important; }
+html[data-heading-size="xl"] h3 { font-size: 1.25rem !important; }
+
+/* BODY font size — targets normal text, labels, paragraphs */
+html[data-body-size="xs"] p,
+html[data-body-size="xs"] label,
+html[data-body-size="xs"] span:not(.no-fs),
+html[data-body-size="xs"] div.pos-body { font-size: 10.5px !important; }
+
+html[data-body-size="sm"] p,
+html[data-body-size="sm"] label,
+html[data-body-size="sm"] span:not(.no-fs),
+html[data-body-size="sm"] div.pos-body { font-size: 12px !important; }
+
+/* base = 13px — no override needed */
+
+html[data-body-size="lg"] p,
+html[data-body-size="lg"] label,
+html[data-body-size="lg"] span:not(.no-fs),
+html[data-body-size="lg"] div.pos-body { font-size: 15px !important; }
+
+html[data-body-size="xl"] p,
+html[data-body-size="xl"] label,
+html[data-body-size="xl"] span:not(.no-fs),
+html[data-body-size="xl"] div.pos-body { font-size: 17px !important; }

@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import App from './App';
 import { LangProvider } from './lib/i18n';
+import { FontSizeProvider } from './lib/font-size';
 import './index.css';
 
 // ─── BACKEND GATE ─────────────────────────────────────────────────────────────
@@ -87,11 +88,13 @@ function BackendGate({ children }: { children: React.ReactNode }) {
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <LangProvider>
-      <HashRouter>
-        <BackendGate>
-          <App />
-        </BackendGate>
-      </HashRouter>
+      <FontSizeProvider>
+        <HashRouter>
+          <BackendGate>
+            <App />
+          </BackendGate>
+        </HashRouter>
+      </FontSizeProvider>
     </LangProvider>
   </React.StrictMode>,
 );
