@@ -17,5 +17,17 @@ contextBridge.exposeInMainWorld('factoryPos', {
     // Return a cleanup function
     return () => ipcRenderer.removeListener('trigger-cloud-backup', callback);
   },
+
+  // Backend lifecycle events — used by BackendGate to show loading screen
+  onBackendReady: (callback: () => void) => {
+    ipcRenderer.on('backend-ready', callback);
+    return () => ipcRenderer.removeListener('backend-ready', callback);
+  },
+
+  onBackendError: (callback: (message: string) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, message: string) => callback(message);
+    ipcRenderer.on('backend-error', handler);
+    return () => ipcRenderer.removeListener('backend-error', handler);
+  },
 });
 

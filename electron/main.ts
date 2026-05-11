@@ -181,6 +181,11 @@ function createWindow() {
     mainWindow.loadFile(indexPath);
   }
 
+  mainWindow.webContents.on('did-finish-load', () => {
+    // Re-deliver backend state in case it resolved before the renderer was ready
+    if (backendState.status !== 'pending') sendBackendStateToRenderer();
+  });
+
   mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
     log(`[Renderer] did-fail-load: ${code} ${desc} url=${url}`);
   });
@@ -194,22 +199,41 @@ function createWindow() {
   });
 }
 
+// ─── BACKEND STATE → IPC ─────────────────────────────────────────────────────
+
+let backendState: { status: 'pending' | 'ready' | 'error'; message?: string } = {
+  status: 'pending',
+};
+
+function sendBackendStateToRenderer() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (backendState.status === 'ready') {
+    mainWindow.webContents.send('backend-ready');
+  } else if (backendState.status === 'error') {
+    mainWindow.webContents.send('backend-error', backendState.message ?? '');
+  }
+}
+
+async function startBackendAndNotify() {
+  await startBackend();
+  const ok = await waitForBackend();
+  if (ok) {
+    backendState = { status: 'ready' };
+    log('[Backend] Sending backend-ready to renderer');
+  } else {
+    const msg = 'Backend did not respond in time. Please restart the application.';
+    backendState = { status: 'error', message: msg };
+    log('[Backend] Sending backend-error to renderer');
+  }
+  sendBackendStateToRenderer();
+}
+
 // ─── APP LIFECYCLE ────────────────────────────────────────────────────────────
 
-app.whenReady().then(async () => {
+app.whenReady().then(() => {
   log(`[App] Starting — version ${app.getVersion()} — packaged=${app.isPackaged} — platform=${process.platform}`);
-  await startBackend();
-  if (!isDev) {
-    const backendReady = await waitForBackend();
-    createWindow();
-    if (!backendReady) {
-      mainWindow?.loadURL(
-        'data:text/html,<html><body style="font-family:sans-serif;padding:40px;color:%23333"><h2>&#9888; Backend failed to start</h2><p>The backend server did not respond in time. Please restart the application.</p><p>Check application logs for details.</p></body></html>',
-      );
-    }
-  } else {
-    createWindow();
-  }
+  createWindow();               // show window immediately
+  startBackendAndNotify();      // start backend in background; notifies renderer when ready
   scheduleCloudBackupCheck();
 });
 
