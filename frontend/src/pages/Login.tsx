@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, Eye, EyeOff, KeyRound, Lock, ShieldCheck, User, Warehouse, X } from 'lucide-react';
+import { CheckCircle, Eye, EyeOff, KeyRound, Lock, ShieldCheck, User, X } from 'lucide-react';
 import { api, setAuthToken } from '../lib/api';
 
 export default function Login() {
@@ -112,11 +112,25 @@ export default function Login() {
     <div className="flex min-h-screen bg-industrial-900">
       {/* Left panel - branding */}
       <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center bg-industrial-950 px-16 text-white">
-        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-accent-primary shadow-industrial-lg mb-8">
-          <Warehouse className="h-10 w-10 text-white" />
+        {/* Same logo mark as sidebar */}
+        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl shadow-xl mb-6"
+          style={{ background: 'linear-gradient(160deg, #1e293b 0%, #0f172a 100%)', border: '1px solid rgba(251,191,36,0.3)' }}>
+          <svg viewBox="0 0 44 44" className="h-12 w-12" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 20 L22 6 L40 20" stroke="#fbbf24" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round"/>
+            <rect x="6" y="20" width="32" height="18" fill="none" stroke="#e2e8f0" strokeWidth="1.6"/>
+            <rect x="6" y="20" width="3" height="18" fill="#e2e8f0" fillOpacity="0.9"/>
+            <rect x="35" y="20" width="3" height="18" fill="#e2e8f0" fillOpacity="0.9"/>
+            <rect x="20.5" y="20" width="3" height="18" fill="#94a3b8" fillOpacity="0.5"/>
+            <rect x="10" y="24" width="7" height="5" rx="0.5" fill="none" stroke="#94a3b8" strokeWidth="1.2"/>
+            <rect x="27" y="24" width="7" height="5" rx="0.5" fill="none" stroke="#94a3b8" strokeWidth="1.2"/>
+            <rect x="17" y="30" width="10" height="8" fill="#fbbf24" fillOpacity="0.15" stroke="#fbbf24" strokeWidth="1.2"/>
+            <line x1="22" y1="30" x2="22" y2="38" stroke="#fbbf24" strokeWidth="0.8"/>
+            <line x1="6" y1="29.5" x2="38" y2="29.5" stroke="#475569" strokeWidth="0.8"/>
+          </svg>
         </div>
-        <h1 className="text-4xl font-bold text-white mb-4">Zaki Cements and Steels</h1>
-        <p className="text-lg text-industrial-400 text-center max-w-sm">
+        <h1 className="text-4xl font-black text-white mb-1 tracking-wide">Haji Kala Khan Son's</h1>
+        <p className="text-sm font-bold tracking-[0.2em] text-amber-400 uppercase mb-8">Cement Steel Dealer</p>
+        <p className="text-base text-industrial-400 text-center max-w-sm">
           Complete point-of-sale solution for steel and cement distribution businesses
         </p>
         <div className="mt-12 grid grid-cols-3 gap-8 text-center">
@@ -140,10 +154,23 @@ export default function Login() {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex flex-col items-center mb-10">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent-primary shadow-industrial-lg mb-4">
-              <Warehouse className="h-8 w-8 text-white" />
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl shadow-xl mb-4"
+              style={{ background: 'linear-gradient(160deg, #1e293b 0%, #0f172a 100%)', border: '1px solid rgba(251,191,36,0.3)' }}>
+              <svg viewBox="0 0 44 44" className="h-10 w-10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 20 L22 6 L40 20" stroke="#fbbf24" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round"/>
+                <rect x="6" y="20" width="32" height="18" fill="none" stroke="#e2e8f0" strokeWidth="1.6"/>
+                <rect x="6" y="20" width="3" height="18" fill="#e2e8f0" fillOpacity="0.9"/>
+                <rect x="35" y="20" width="3" height="18" fill="#e2e8f0" fillOpacity="0.9"/>
+                <rect x="20.5" y="20" width="3" height="18" fill="#94a3b8" fillOpacity="0.5"/>
+                <rect x="10" y="24" width="7" height="5" rx="0.5" fill="none" stroke="#94a3b8" strokeWidth="1.2"/>
+                <rect x="27" y="24" width="7" height="5" rx="0.5" fill="none" stroke="#94a3b8" strokeWidth="1.2"/>
+                <rect x="17" y="30" width="10" height="8" fill="#fbbf24" fillOpacity="0.15" stroke="#fbbf24" strokeWidth="1.2"/>
+                <line x1="22" y1="30" x2="22" y2="38" stroke="#fbbf24" strokeWidth="0.8"/>
+                <line x1="6" y1="29.5" x2="38" y2="29.5" stroke="#475569" strokeWidth="0.8"/>
+              </svg>
             </div>
-            <h1 className="text-2xl font-bold text-industrial-900">Zaki Cements and Steels</h1>
+            <h1 className="text-2xl font-black text-industrial-900">Haji Kala Khan Son's</h1>
+            <p className="text-xs font-bold tracking-[0.2em] text-amber-500 uppercase mt-0.5">Cement Steel Dealer</p>
           </div>
 
           <div className="bg-white rounded-2xl shadow-industrial-lg border-2 border-industrial-200 p-10">
@@ -225,7 +252,7 @@ export default function Login() {
           </div>
 
           <p className="text-center text-sm text-industrial-500 mt-6">
-            Zaki Cements and Steels • All rights reserved
+            Haji Kala Khan Son's • Cement Steel Dealer
           </p>
         </div>
       </div>
