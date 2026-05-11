@@ -32,7 +32,7 @@ api.interceptors.response.use(
   (error) => {
     if (error?.response?.status === 401) {
       clearAuthToken();
-      window.location.href = '/login';
+      window.location.replace('/#/login');
     }
     return Promise.reject(error);
   },

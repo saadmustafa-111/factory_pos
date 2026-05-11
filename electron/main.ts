@@ -1,10 +1,30 @@
 import { app, BrowserWindow, dialog, ipcMain, net, shell } from 'electron';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 
 const isDev = !app.isPackaged;
 let mainWindow: BrowserWindow | null = null;
+
+// ─── CRASH LOGGING ────────────────────────────────────────────────────────────
+
+function getLogPath() {
+  return path.join(app.getPath('userData'), 'app.log');
+}
+
+function log(msg: string) {
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  console.log(msg);
+  try { appendFileSync(getLogPath(), line); } catch { /* ignore */ }
+}
+
+process.on('uncaughtException', (err) => {
+  log(`[uncaughtException] ${err?.stack ?? err}`);
+});
+
+process.on('unhandledRejection', (reason) => {
+  log(`[unhandledRejection] ${String(reason)}`);
+});
 
 // ─── INTERNET + CLOUD BACKUP SCHEDULER ───────────────────────────────────────
 
@@ -67,13 +87,13 @@ async function startBackend() {
   if (isDev) return;
 
   const backendDist = path.join(process.resourcesPath, 'backend', 'dist', 'main.js');
-  console.log('[Backend] resourcesPath:', process.resourcesPath);
-  console.log('[Backend] Looking for dist at:', backendDist);
+  log(`[Backend] resourcesPath: ${process.resourcesPath}`);
+  log(`[Backend] Looking for dist at: ${backendDist}`);
   if (!existsSync(backendDist)) {
-    console.error('[Backend] dist NOT FOUND at:', backendDist);
+    log(`[Backend] dist NOT FOUND at: ${backendDist}`);
     return;
   }
-  console.log('[Backend] dist found, loading...');
+  log('[Backend] dist found, loading...');
 
   // Store the SQLite database in the user's writable data directory
   const userDataPath = app.getPath('userData');
@@ -102,12 +122,11 @@ async function startBackend() {
   // Run the NestJS backend in-process — Electron has Node.js built in,
   // no need to spawn an external node process.
   try {
-    console.log('[Backend] Calling require on:', backendDist);
+    log(`[Backend] Calling require on: ${backendDist}`);
     require(backendDist);
-    console.log('[Backend] require() returned (NestJS bootstrapping in background)');
+    log('[Backend] require() returned (NestJS bootstrapping in background)');
   } catch (err) {
-    console.error('[Backend] Failed to start. Error:', err);
-    console.error('[Backend] Stack:', (err as Error)?.stack);
+    log(`[Backend] Failed to start. Error: ${(err as Error)?.stack ?? err}`);
   }
 }
 
@@ -119,7 +138,7 @@ async function waitForBackend(maxWaitMs = 15000): Promise<boolean> {
     try {
       const res = await net.fetch('http://localhost:3001/health');
       if (res.ok) {
-        console.log('[Backend] Health check passed after', Date.now() - start, 'ms');
+        log(`[Backend] Health check passed after ${Date.now() - start}ms`);
         return true;
       }
     } catch {
@@ -127,7 +146,7 @@ async function waitForBackend(maxWaitMs = 15000): Promise<boolean> {
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  console.error('[Backend] Did not respond within', maxWaitMs, 'ms');
+  log(`[Backend] Did not respond within ${maxWaitMs}ms`);
   return false;
 }
 
@@ -151,7 +170,9 @@ function createWindow() {
     },
   });
 
-  mainWindow.webContents.openDevTools();
+  if (isDev) {
+    mainWindow.webContents.openDevTools();
+  }
 
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
@@ -159,6 +180,14 @@ function createWindow() {
     const indexPath = path.join(process.resourcesPath, 'frontend', 'dist', 'index.html');
     mainWindow.loadFile(indexPath);
   }
+
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    log(`[Renderer] did-fail-load: ${code} ${desc} url=${url}`);
+  });
+
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    log(`[Renderer] render-process-gone: reason=${details.reason} exitCode=${details.exitCode}`);
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -168,6 +197,7 @@ function createWindow() {
 // ─── APP LIFECYCLE ────────────────────────────────────────────────────────────
 
 app.whenReady().then(async () => {
+  log(`[App] Starting — version ${app.getVersion()} — packaged=${app.isPackaged} — platform=${process.platform}`);
   await startBackend();
   if (!isDev) {
     const backendReady = await waitForBackend();
