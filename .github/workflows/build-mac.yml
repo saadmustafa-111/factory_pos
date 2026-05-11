@@ -79,8 +79,8 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest-windows
-          name: "Steel & Cement POS"
+          tag_name: latest-mac
+          name: "Steel & Cement POS — Mac"
           body: "Mac installer — open the .dmg and drag the app to Applications."
           files: dist-electron/*.dmg
           prerelease: false
