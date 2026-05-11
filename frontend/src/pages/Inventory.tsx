@@ -752,12 +752,14 @@ export default function Inventory() {
                 <p className="text-sm font-semibold text-industrial-500">{isUrdu ? 'کوئی ہسٹری نہیں' : 'No history found'}</p>
               </div>
             ) : (
-              <table className="w-full text-sm min-w-[820px]">
+              <table className="w-full text-sm min-w-[1020px]">
                 <thead className="sticky top-0 bg-industrial-800 text-white z-10">
                   <tr>
                     <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider w-24">{t.date}</th>
                     <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">{t.supplier}</th>
                     <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">{t.product}</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider">{isUrdu ? 'مقدار' : 'Qty'}</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider">{isUrdu ? 'فی یونٹ قیمت' : 'Unit Price'}</th>
                     <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider">{t.totalCost}</th>
                     <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider">{t.paid}</th>
                     <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider bg-red-900/30">{t.pending}</th>
@@ -794,6 +796,11 @@ export default function Inventory() {
                         {localizeApiText(row.product?.name, isUrdu)}
                         {row.cement_brand?.brand_name && <div className="text-[10px] text-industrial-400">{localizeApiText(row.cement_brand.brand_name, isUrdu)}</div>}
                       </td>
+                      <td className="px-3 py-2.5 text-right font-semibold text-industrial-900 text-xs whitespace-nowrap">
+                        {row.quantity_received}
+                        <div className="text-[10px] text-industrial-400 font-normal">{localizeApiUnit(row.product?.unit, isUrdu)}</div>
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-semibold text-blue-700 text-xs whitespace-nowrap">{fmtCurrency(row.purchase_price_per_unit)}</td>
                       <td className="px-3 py-2.5 text-right font-bold text-industrial-900 text-xs whitespace-nowrap">{fmtCurrency(row.total_cost)}</td>
                       <td className="px-3 py-2.5 text-right font-semibold text-accent-primary text-xs whitespace-nowrap">{fmtCurrency(row.amount_paid_to_mill)}</td>
                       <td className="px-3 py-2.5 text-right font-semibold text-accent-danger text-xs whitespace-nowrap">{fmtCurrency(row.amount_pending_to_mill)}</td>
