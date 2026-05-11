@@ -83,6 +83,8 @@ export default function Sales() {
   // Customer state
   const [selectedCustomerId, setSelectedCustomerId] = useState<number>(0);
   const [customerSearch, setCustomerSearch] = useState('');
+  const [isWalkIn, setIsWalkIn] = useState(false);
+  const [walkInName, setWalkInName] = useState('');
   const filteredCustomers = customers.filter(c =>
     c.name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
     c.phone?.includes(customerSearch)
@@ -174,7 +176,7 @@ export default function Sales() {
     setValidationError('');
     if (!items.length) { setValidationError('Please add at least one item.'); return; }
     if (sale.isCredit && !sale.credit_days) { setValidationError('Credit sale requires Credit Days to be set (e.g. 30 days).'); return; }
-    if (!selectedCustomerId) { setValidationError('Please select a customer.'); return; }
+    if (!isWalkIn && !selectedCustomerId) { setValidationError('Please select a customer or use Walk-in / Cash Customer.'); return; }
 
     const resp = await api.post('/sales', {
       date: sale.date,
@@ -184,7 +186,8 @@ export default function Sales() {
       loading_charges: Number(sale.loading_charges || 0),
       discount: Number(sale.discount || 0),
       notes: sale.notes,
-      customer_id: selectedCustomerId,
+      customer_id: isWalkIn ? undefined : selectedCustomerId,
+      customer_name: isWalkIn ? (walkInName.trim() || 'Walk-in Customer') : undefined,
       items: items.map((i) => ({
         product_id: i.product_id, cement_brand_id: i.cement_brand_id,
         quantity: Number(i.quantity), sale_price_per_unit: Number(i.sale_price_per_unit),
@@ -193,8 +196,8 @@ export default function Sales() {
 
     // Build receipt data for printing
     const savedSale = resp.data;
-    const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
-    const customerName = selectedCustomer?.name || 'Customer';
+    const selectedCustomer = isWalkIn ? null : customers.find(c => c.id === selectedCustomerId);
+    const customerName = isWalkIn ? (walkInName.trim() || 'Walk-in Customer') : (selectedCustomer?.name || 'Customer');
     const customerPhone = selectedCustomer?.phone;
     const customerAddress = selectedCustomer?.address;
 
@@ -232,7 +235,7 @@ export default function Sales() {
     setLastSaleReceipt(receiptData);
     setItems([]);
     setSale({ date: new Date().toISOString().slice(0, 10), isCredit: false, credit_days: 0, due_date: '', amount_paid: 0, loading_charges: 0, discount: 0, notes: '' });
-    setSelectedCustomerId(0); setCustomerSearch('');
+    setSelectedCustomerId(0); setCustomerSearch(''); setIsWalkIn(false); setWalkInName('');
     setSavedMsg(t.completeSale + ' ✓');
     setTimeout(() => { setSavedMsg(''); setLastSaleReceipt(null); }, 30000);
     setNewSaleOpen(false);
@@ -602,10 +605,32 @@ export default function Sales() {
                     <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 ring-1 ring-blue-200">
                       <User className="h-3.5 w-3.5 text-blue-600" />
                     </div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-industrial-700">{isUrdu ? 'کسٹمر' : 'Select Customer'}</h3>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-industrial-700">{isUrdu ? 'کسٹمر' : 'Select Customer'}</h3>
                   </div>
 
-                  {selectedCustomerId > 0 ? (
+                  {/* Walk-in toggle */}
+                  <div className="mb-3 flex gap-2">
+                    <button type="button"
+                      onClick={() => { setIsWalkIn(false); setWalkInName(''); }}
+                      className={`flex-1 rounded-lg border-2 px-3 py-2 text-xs font-semibold transition-all ${!isWalkIn ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-industrial-200 text-industrial-500 hover:border-industrial-300'}`}>
+                      <User className="inline h-3 w-3 mr-1" />{isUrdu ? 'موجودہ کسٹمر' : 'Existing Customer'}
+                    </button>
+                    <button type="button"
+                      onClick={() => { setIsWalkIn(true); setSelectedCustomerId(0); setCustomerSearch(''); }}
+                      className={`flex-1 rounded-lg border-2 px-3 py-2 text-xs font-semibold transition-all ${isWalkIn ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-industrial-200 text-industrial-500 hover:border-industrial-300'}`}>
+                      🧍 {isUrdu ? 'واک اِن / نقد' : 'Walk-in / Cash'}
+                    </button>
+                  </div>
+
+                  {isWalkIn ? (
+                    <div className="rounded-xl bg-amber-50 border-2 border-amber-200 px-4 py-3">
+                      <p className="text-xs font-semibold text-amber-700 mb-2">{isUrdu ? 'نقد / واک اِن کسٹمر' : 'Cash / Walk-in Customer'}</p>
+                      <input
+                        className="h-9 w-full rounded-lg border-2 border-amber-300 bg-white px-3 text-sm focus:border-amber-500 focus:outline-none"
+                        placeholder={isUrdu ? 'نام (اختیاری)' : 'Customer name (optional)'}
+                        value={walkInName} onChange={e => setWalkInName(e.target.value)} />
+                    </div>
+                  ) : selectedCustomerId > 0 ? (
                     <div className="flex items-center justify-between rounded-xl bg-blue-50 border-2 border-blue-200 px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="h-9 w-9 rounded-full bg-blue-200 flex items-center justify-center shrink-0">
