@@ -20,6 +20,9 @@ export class CustomerManualCredit {
   @Column({ type: 'float' })
   amount: number;
 
+  @Column({ type: 'float', default: 0 })
+  paid_amount: number;
+
   @Column({ type: 'text', nullable: true })
   notes: string;
 

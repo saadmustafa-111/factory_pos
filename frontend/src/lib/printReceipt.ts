@@ -26,7 +26,7 @@ export interface ReceiptData {
 }
 
 const APP_NAME = "Haji Kala Khan Son's";
-const APP_TAGLINE = 'Cement & Steel Dealer | Sales Invoice';
+const APP_TAGLINE = 'Cement Steel Dealer | Sales Invoice';
 
 function escapeHtml(value: string) {
   return value
@@ -115,7 +115,7 @@ export function printReceipt(data: ReceiptData) {
   <!-- Shop Header -->
   <div class="header-box">
     <div class="shop-name">${APP_NAME}</div>
-    <div class="shop-sub">Cement &amp; Steel Dealer</div>
+    <div class="shop-sub">Cement Steel Dealer</div>
     <div class="shop-sub" style="font-size:9px;margin-top:1px;color:#555;">${APP_TAGLINE}</div>
   </div>
   <hr class="divider-solid" />

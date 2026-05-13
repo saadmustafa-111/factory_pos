@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { BookOpen, Eye, Plus, Pencil, Trash2, Truck } from 'lucide-react';
 import { api } from '../lib/api';
 import { useLang } from '../lib/i18n';
@@ -28,6 +28,7 @@ interface SupplierLedgerSummary {
 export default function SuppliersPage() {
   const { isUrdu } = useLang();
   const navigate = useNavigate();
+  const location = useLocation();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [ledgerMap, setLedgerMap] = useState<Record<number, SupplierLedgerSummary>>({});
   const [loading, setLoading] = useState(true);
@@ -35,6 +36,16 @@ export default function SuppliersPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [viewingSupplier, setViewingSupplier] = useState<Supplier | null>(null);
+
+  // Auto-open add modal when navigated with ?add=1
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('add') === '1') {
+      setEditingSupplier(null);
+      setModalOpen(true);
+      navigate('/suppliers', { replace: true });
+    }
+  }, [location.search]);
 
   const load = async () => {
     setLoading(true);

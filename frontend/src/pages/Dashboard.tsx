@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { AlertTriangle, ArrowUpRight, Building2, TrendingUp, Users, Wallet, ShoppingCart, TrendingDown, DollarSign, Minus, Eye, EyeOff } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, Building2, TrendingUp, Users, Wallet, ShoppingCart, TrendingDown, Minus, Eye, EyeOff } from 'lucide-react';
 import { api } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { localizeApiText } from '../lib/localize';
@@ -87,7 +87,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
           <div className="flex items-center gap-2.5">
             <div className="h-7 w-7 rounded-lg bg-amber-500/20 flex items-center justify-center">
-              <DollarSign className="h-4 w-4 text-amber-400" />
+              <span className="text-[10px] font-black text-amber-400 leading-none">PKR</span>
             </div>
             <h2 className="text-sm font-bold text-white tracking-wide">{t.todayNetTitle}</h2>
           </div>

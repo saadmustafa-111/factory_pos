@@ -199,7 +199,7 @@ export default function MillLedger() {
             <TrendingDown className={`h-4 w-4 ${creditSummary.totalBalance > 0 ? 'text-red-600' : 'text-green-600'}`} />
           </div>
           <div>
-            <p className={`text-[11px] font-bold uppercase tracking-wider ${creditSummary.totalBalance > 0 ? 'text-red-400' : 'text-green-500'}`}>Outstanding</p>
+            <p className={`text-[11px] font-bold uppercase tracking-wider ${creditSummary.totalBalance > 0 ? 'text-red-400' : 'text-green-500'}`}>Total Due Balance</p>
             <p className={`text-lg font-black ${creditSummary.totalBalance > 0 ? 'text-red-700' : 'text-green-700'}`}>{HS(creditSummary.totalBalance)}</p>
           </div>
         </div>
@@ -344,7 +344,7 @@ export default function MillLedger() {
                       <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-industrial-500">Dealer</th>
                       <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Total Purchased</th>
                       <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Paid</th>
-                      <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Outstanding</th>
+                      <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Total Due Balance</th>
                       <th className="px-5 py-3 text-center text-xs font-bold uppercase tracking-wider text-industrial-500">Status</th>
                       <th className="px-5 py-3 w-24"></th>
                     </tr>

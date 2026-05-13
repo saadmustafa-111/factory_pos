@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable';
 import type { ReceiptData } from './printReceipt';
 
 const APP_NAME = "Haji Kala Khan Son's";
-const APP_SUBTITLE = 'Cement & Steel Dealer';
+const APP_SUBTITLE = 'Cement Steel Dealer';
 
 export interface DailyRegisterRow {
   date: string;
@@ -78,7 +78,7 @@ export function downloadSaleReceiptPdf(receipt: ReceiptData) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(245, 158, 11); // amber for tagline
-  doc.text('Cement & Steel Dealer', 14, 20);
+  doc.text('Cement Steel Dealer', 14, 20);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
@@ -282,7 +282,7 @@ export function downloadSupplierLedgerPdf(data: SupplierLedgerPdfData) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(245, 158, 11);
-  doc.text('Cement & Steel Dealer', 14, 20);
+  doc.text('Cement Steel Dealer', 14, 20);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
   doc.text('Dealer Account Statement', 14, 27);
@@ -464,7 +464,7 @@ export function downloadCustomerLedgerPdf(data: CustomerLedgerPdfData) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(245, 158, 11);
-  doc.text('Cement & Steel Dealer', 14, 20);
+  doc.text('Cement Steel Dealer', 14, 20);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
   doc.text('Customer Account Statement', 14, 27);
@@ -558,7 +558,7 @@ export function downloadCustomerLedgerPdf(data: CustomerLedgerPdfData) {
   startY += 2;
   autoTable(doc, {
     startY,
-    head: [['Date', 'Items', 'Billed', 'Collected', 'Outstanding', 'Status']],
+    head: [['Date', 'Items', 'Billed', 'Collected', 'Total Due Balance', 'Status']],
     body: salesHistory.map((s) => [
       new Date(s.date).toLocaleDateString('en-PK', { day: '2-digit', month: '2-digit', year: 'numeric' }),
       s.items_summary || '—',
@@ -638,7 +638,7 @@ export function downloadReportPdf(data: ReportPdfData) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(245, 158, 11);
-  doc.text('Cement & Steel Dealer', 14, 20);
+  doc.text('Cement Steel Dealer', 14, 20);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
   doc.text('Business Summary Report', 14, 27);

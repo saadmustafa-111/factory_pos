@@ -230,7 +230,7 @@ const translations = {
     installmentCustomers: 'Credit Plans',
     totalCustomers: 'Total Customers',
     overdueCustomers: 'Overdue',
-    totalOutstanding: 'Total Outstanding',
+    totalOutstanding: 'Total Due Balance',
     todayCollections: "Today's Collections",
     lastPurchase: 'Last Purchase',
     lastPayment: 'Last Payment',

@@ -403,7 +403,7 @@ export default function Sales() {
             <p className="text-sm font-bold text-industrial-900">{fmtCurrency(allSalesTotals.total)}</p>
           </div>
           <div className="rounded-lg border border-industrial-200 bg-white px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-industrial-500">{isUrdu ? 'بقایا' : 'Outstanding'}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-industrial-500">{isUrdu ? 'بقایا' : 'Total Due Balance'}</p>
             <p className="text-sm font-bold text-accent-danger">{fmtCurrency(allSalesTotals.pending)}</p>
           </div>
           <Button onClick={() => setNewSaleOpen(true)} className="h-9">

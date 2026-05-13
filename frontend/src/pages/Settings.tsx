@@ -8,7 +8,7 @@ import { useFontSize, type SizeStep } from '../lib/font-size';
 
 export default function Settings() {
   const { t, isUrdu } = useLang();
-  const { settings: fs, setTableSize, setHeadingSize, setBodySize, reset: resetFs } = useFontSize();
+  const { settings: fs, setTableSize, setHeadingSize, setBodySize, setSidebarSize, reset: resetFs } = useFontSize();
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -253,6 +253,22 @@ export default function Settings() {
             onChange={setBodySize}
             preview={<span style={{ fontFamily: 'inherit' }}>Customer name &nbsp;·&nbsp; Enter username &nbsp;·&nbsp; Select dealer</span>}
           />
+
+          <div className="border-t border-industrial-100" />
+
+          <FontSizeRow
+            icon={
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="12" x2="21" y2="12"/><path d="M9 18l3-12 3 12"/><path d="M5 9h14"/>
+              </svg>
+            }
+            label={isUrdu ? 'سائیڈبار ٹیکسٹ' : 'Sidebar Text'}
+            desc={isUrdu ? 'نیویگیشن مینو کے لنکس' : 'Navigation menu links'}
+            color="purple"
+            value={fs.sidebar}
+            onChange={setSidebarSize}
+            preview={<span style={{ fontFamily: 'inherit' }}>Dashboard &nbsp;·&nbsp; Sales &nbsp;·&nbsp; Settings</span>}
+          />
         </div>
       </Card>
 
@@ -271,9 +287,10 @@ const STEPS: { value: SizeStep; label: string; px: string }[] = [
 ];
 
 const COLOR_MAP: Record<string, { ring: string; active: string; dot: string }> = {
-  blue:  { ring: 'ring-blue-400',  active: 'bg-blue-600 text-white shadow-md',  dot: 'bg-blue-500' },
-  amber: { ring: 'ring-amber-400', active: 'bg-amber-500 text-white shadow-md', dot: 'bg-amber-500' },
-  green: { ring: 'ring-green-400', active: 'bg-green-600 text-white shadow-md', dot: 'bg-green-500' },
+  blue:   { ring: 'ring-blue-400',   active: 'bg-blue-600 text-white shadow-md',   dot: 'bg-blue-500' },
+  amber:  { ring: 'ring-amber-400',  active: 'bg-amber-500 text-white shadow-md',  dot: 'bg-amber-500' },
+  green:  { ring: 'ring-green-400',  active: 'bg-green-600 text-white shadow-md',  dot: 'bg-green-500' },
+  purple: { ring: 'ring-purple-400', active: 'bg-purple-600 text-white shadow-md', dot: 'bg-purple-500' },
 };
 
 function FontSizeRow({

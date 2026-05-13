@@ -233,7 +233,7 @@ export default function CustomerLedger() {
             <TrendingDown className={`h-4 w-4 ${creditSummary.totalBalance > 0 ? 'text-red-600' : 'text-green-600'}`} />
           </div>
           <div>
-            <p className={`text-[11px] font-bold uppercase tracking-wider ${creditSummary.totalBalance > 0 ? 'text-red-400' : 'text-green-500'}`}>Outstanding</p>
+            <p className={`text-[11px] font-bold uppercase tracking-wider ${creditSummary.totalBalance > 0 ? 'text-red-400' : 'text-green-500'}`}>Total Due Balance</p>
             <p className={`text-lg font-black ${creditSummary.totalBalance > 0 ? 'text-red-700' : 'text-green-700'}`}>{HS(creditSummary.totalBalance)}</p>
           </div>
         </div>
@@ -375,7 +375,7 @@ export default function CustomerLedger() {
                         <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-industrial-500">Customer</th>
                         <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Total Billed</th>
                         <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Collected</th>
-                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Outstanding</th>
+                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Total Due Balance</th>
                         <th className="px-5 py-3 text-center text-xs font-bold uppercase tracking-wider text-industrial-500">Status</th>
                         <th className="px-5 py-3 w-24"></th>
                       </tr>
@@ -555,7 +555,7 @@ export default function CustomerLedger() {
                         <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-industrial-500">Items</th>
                         <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Billed</th>
                         <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Collected</th>
-                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Outstanding</th>
+                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Total Due Balance</th>
                         <th className="px-5 py-3 text-center text-xs font-bold uppercase tracking-wider text-industrial-500">Status</th>
                       </tr>
                     </thead>
@@ -604,7 +604,7 @@ export default function CustomerLedger() {
                         <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-industrial-500">Description</th>
                         <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500 w-32">Sale Amount</th>
                         <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500 w-32">Collected</th>
-                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500 w-32">Outstanding</th>
+                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500 w-32">Total Due Balance</th>
                         <th className="px-5 py-3 w-28"></th>
                       </tr>
                     </thead>

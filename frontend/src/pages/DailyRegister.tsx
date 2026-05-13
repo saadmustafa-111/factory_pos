@@ -84,9 +84,9 @@ function DayDetailDrawer({ date, onClose }: { date: string; onClose: () => void 
             <div className="grid grid-cols-3 gap-px bg-industrial-100 border-b border-industrial-100">
               {[
                 { label: 'Total Sales', val: detail.summary.total_sales, color: 'text-blue-700' },
-                { label: 'Cash + Udhar Wapsi', val: detail.summary.cash_collected + detail.summary.payments_collected, color: 'text-green-700' },
-                { label: 'Credit Given', val: detail.summary.credit_given, color: 'text-amber-700' },
-                { label: 'Udhar Wapsi', val: detail.summary.payments_collected, color: 'text-purple-700' },
+                { label: 'Cash + Wasoli (Udhar Wapsi)', val: detail.summary.cash_collected + detail.summary.payments_collected, color: 'text-green-700' },
+                { label: 'Banam (Udhar)', val: detail.summary.credit_given, color: 'text-amber-700' },
+                { label: 'Wasoli (Udhar Wapsi)', val: detail.summary.payments_collected, color: 'text-purple-700' },
                 { label: 'Stock Value', val: detail.summary.stock_value, color: 'text-industrial-700' },
                 { label: 'Net Profit', val: detail.summary.profit, color: detail.summary.profit >= 0 ? 'text-emerald-700' : 'text-red-600' },
               ].map(c => (
@@ -100,7 +100,7 @@ function DayDetailDrawer({ date, onClose }: { date: string; onClose: () => void 
               {([
                 { key: 'sales' as const, label: 'Sales', count: detail.sales.length },
                 { key: 'stock' as const, label: 'Stock In', count: detail.stock_movements.length },
-                { key: 'payments' as const, label: 'Udhar Wapsi', count: detail.payments_received.length },
+                { key: 'payments' as const, label: 'Wasoli (Udhar Wapsi)', count: detail.payments_received.length },
               ]).map(tb => (
                 <button key={tb.key} onClick={() => setTab(tb.key)}
                   className={`relative px-5 py-3 text-sm font-semibold transition-colors ${tab === tb.key ? 'text-industrial-700' : 'text-industrial-400 hover:text-industrial-600'}`}>
@@ -121,7 +121,7 @@ function DayDetailDrawer({ date, onClose }: { date: string; onClose: () => void 
                           <div className="flex items-center gap-2 mb-2">
                             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-industrial-700 text-xs font-bold text-white shrink-0">{idx + 1}</span>
                             <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${sale.payment_type === 'cash' ? 'bg-green-200 text-green-800' : 'bg-amber-200 text-amber-800'}`}>
-                              {sale.payment_type === 'cash' ? '✓ CASH' : '⏱ CREDIT'}
+                              {sale.payment_type === 'cash' ? '✓ CASH' : '⏱ BANAM'}
                             </span>
                             {sale.status === 'overdue' && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">OVERDUE</span>}
                           </div>
@@ -285,7 +285,7 @@ export default function DailyRegister() {
             {[
               { icon: ShoppingCart, label: 'Total Sales', val: totals.sales_amount, textC: 'text-blue-300', borderC: 'border-blue-400/30' },
               { icon: Banknote, label: 'Cash Received', val: totals.cash_received, textC: 'text-green-300', borderC: 'border-green-400/30' },
-              { icon: Banknote, label: 'Udhar Wapsi', val: totals.payments_collected, textC: 'text-purple-300', borderC: 'border-purple-400/30' },
+              { icon: Banknote, label: 'Wasoli (Udhar Wapsi)', val: totals.payments_collected, textC: 'text-purple-300', borderC: 'border-purple-400/30' },
               { icon: Truck, label: 'Stock In', val: totals.stock_added_value, textC: 'text-industrial-300', borderC: 'border-industrial-400/30' },
               { icon: TrendingUp, label: 'Net Profit', val: totals.net_profit, textC: totals.net_profit >= 0 ? 'text-emerald-300' : 'text-red-300', borderC: totals.net_profit >= 0 ? 'border-emerald-400/30' : 'border-red-400/30' },
             ].map(c => { const Icon = c.icon; return (
@@ -318,7 +318,7 @@ export default function DailyRegister() {
         ) : (
           <div className="overflow-hidden bg-white">
             <div className="hidden lg:grid grid-cols-[200px_50px_1fr_1fr_1fr_1fr_1fr_1fr_44px] border-b-2 border-industrial-800 bg-industrial-800 px-4 py-3">
-              {['Date', '#', 'Sales Amt', 'Cash In', 'Credit (Udhar)', 'Udhar Wapsi', 'Stock In', 'Profit', ''].map((h, i) => (
+              {['Date', '#', 'Sales Amt', 'Cash In', 'Banam (Udhar)', 'Wasoli (Udhar Wapsi)', 'Stock In', 'Profit', ''].map((h, i) => (
                 <div key={i} className={`text-xs font-bold uppercase tracking-widest text-white/80 ${i > 1 ? 'text-right' : i === 1 ? 'text-center' : ''}`}>{h}</div>
               ))}
             </div>

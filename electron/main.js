@@ -42,6 +42,24 @@ const node_crypto_1 = require("node:crypto");
 const node_path_1 = __importDefault(require("node:path"));
 const isDev = !electron_1.app.isPackaged;
 let mainWindow = null;
+// ─── CRASH LOGGING ────────────────────────────────────────────────────────────
+function getLogPath() {
+    return node_path_1.default.join(electron_1.app.getPath('userData'), 'app.log');
+}
+function log(msg) {
+    const line = `[${new Date().toISOString()}] ${msg}\n`;
+    console.log(msg);
+    try {
+        (0, node_fs_1.appendFileSync)(getLogPath(), line);
+    }
+    catch { /* ignore */ }
+}
+process.on('uncaughtException', (err) => {
+    log(`[uncaughtException] ${err?.stack ?? err}`);
+});
+process.on('unhandledRejection', (reason) => {
+    log(`[unhandledRejection] ${String(reason)}`);
+});
 // ─── INTERNET + CLOUD BACKUP SCHEDULER ───────────────────────────────────────
 function isOnline() {
     return electron_1.net.isOnline();
@@ -100,13 +118,13 @@ async function startBackend() {
     if (isDev)
         return;
     const backendDist = node_path_1.default.join(process.resourcesPath, 'backend', 'dist', 'main.js');
-    console.log('[Backend] resourcesPath:', process.resourcesPath);
-    console.log('[Backend] Looking for dist at:', backendDist);
+    log(`[Backend] resourcesPath: ${process.resourcesPath}`);
+    log(`[Backend] Looking for dist at: ${backendDist}`);
     if (!(0, node_fs_1.existsSync)(backendDist)) {
-        console.error('[Backend] dist NOT FOUND at:', backendDist);
+        log(`[Backend] dist NOT FOUND at: ${backendDist}`);
         return;
     }
-    console.log('[Backend] dist found, loading...');
+    log('[Backend] dist found, loading...');
     // Store the SQLite database in the user's writable data directory
     const userDataPath = electron_1.app.getPath('userData');
     const dbDir = node_path_1.default.join(userDataPath, 'database');
@@ -132,13 +150,12 @@ async function startBackend() {
     // Run the NestJS backend in-process — Electron has Node.js built in,
     // no need to spawn an external node process.
     try {
-        console.log('[Backend] Calling require on:', backendDist);
+        log(`[Backend] Calling require on: ${backendDist}`);
         require(backendDist);
-        console.log('[Backend] require() returned (NestJS bootstrapping in background)');
+        log('[Backend] require() returned (NestJS bootstrapping in background)');
     }
     catch (err) {
-        console.error('[Backend] Failed to start. Error:', err);
-        console.error('[Backend] Stack:', err?.stack);
+        log(`[Backend] Failed to start. Error: ${err?.stack ?? err}`);
     }
 }
 // ─── BACKEND HEALTH CHECK ─────────────────────────────────────────────────────
@@ -148,7 +165,7 @@ async function waitForBackend(maxWaitMs = 15000) {
         try {
             const res = await electron_1.net.fetch('http://localhost:3001/health');
             if (res.ok) {
-                console.log('[Backend] Health check passed after', Date.now() - start, 'ms');
+                log(`[Backend] Health check passed after ${Date.now() - start}ms`);
                 return true;
             }
         }
@@ -157,7 +174,7 @@ async function waitForBackend(maxWaitMs = 15000) {
         }
         await new Promise((r) => setTimeout(r, 500));
     }
-    console.error('[Backend] Did not respond within', maxWaitMs, 'ms');
+    log(`[Backend] Did not respond within ${maxWaitMs}ms`);
     return false;
 }
 // ─── WINDOW ───────────────────────────────────────────────────────────────────
@@ -177,7 +194,9 @@ function createWindow() {
             preload: preloadPath,
         },
     });
-    mainWindow.webContents.openDevTools();
+    if (isDev) {
+        mainWindow.webContents.openDevTools();
+    }
     if (isDev) {
         mainWindow.loadURL('http://localhost:5173');
     }
@@ -185,23 +204,54 @@ function createWindow() {
         const indexPath = node_path_1.default.join(process.resourcesPath, 'frontend', 'dist', 'index.html');
         mainWindow.loadFile(indexPath);
     }
+    mainWindow.webContents.on('did-finish-load', () => {
+        // Re-deliver backend state in case it resolved before the renderer was ready
+        if (backendState.status !== 'pending')
+            sendBackendStateToRenderer();
+    });
+    mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+        log(`[Renderer] did-fail-load: ${code} ${desc} url=${url}`);
+    });
+    mainWindow.webContents.on('render-process-gone', (_e, details) => {
+        log(`[Renderer] render-process-gone: reason=${details.reason} exitCode=${details.exitCode}`);
+    });
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
 }
-// ─── APP LIFECYCLE ────────────────────────────────────────────────────────────
-electron_1.app.whenReady().then(async () => {
+// ─── BACKEND STATE → IPC ─────────────────────────────────────────────────────
+let backendState = {
+    status: 'pending',
+};
+function sendBackendStateToRenderer() {
+    if (!mainWindow || mainWindow.isDestroyed())
+        return;
+    if (backendState.status === 'ready') {
+        mainWindow.webContents.send('backend-ready');
+    }
+    else if (backendState.status === 'error') {
+        mainWindow.webContents.send('backend-error', backendState.message ?? '');
+    }
+}
+async function startBackendAndNotify() {
     await startBackend();
-    if (!isDev) {
-        const backendReady = await waitForBackend();
-        createWindow();
-        if (!backendReady) {
-            mainWindow?.loadURL('data:text/html,<html><body style="font-family:sans-serif;padding:40px;color:%23333"><h2>&#9888; Backend failed to start</h2><p>The backend server did not respond in time. Please restart the application.</p><p>Check application logs for details.</p></body></html>');
-        }
+    const ok = await waitForBackend();
+    if (ok) {
+        backendState = { status: 'ready' };
+        log('[Backend] Sending backend-ready to renderer');
     }
     else {
-        createWindow();
+        const msg = 'Backend did not respond in time. Please restart the application.';
+        backendState = { status: 'error', message: msg };
+        log('[Backend] Sending backend-error to renderer');
     }
+    sendBackendStateToRenderer();
+}
+// ─── APP LIFECYCLE ────────────────────────────────────────────────────────────
+electron_1.app.whenReady().then(() => {
+    log(`[App] Starting — version ${electron_1.app.getVersion()} — packaged=${electron_1.app.isPackaged} — platform=${process.platform}`);
+    createWindow(); // show window immediately
+    startBackendAndNotify(); // start backend in background; notifies renderer when ready
     scheduleCloudBackupCheck();
 });
 electron_1.app.on('window-all-closed', () => {

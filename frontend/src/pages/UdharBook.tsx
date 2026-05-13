@@ -89,7 +89,7 @@ export default function UdharBook() {
             <p className="text-sm font-bold text-industrial-900">{filtered.length}</p>
           </div>
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-red-500">{isUrdu ? 'کل واجب الادا' : 'Total Outstanding'}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-red-500">{isUrdu ? 'کل واجب الادا' : 'Total Due Balance'}</p>
             <p className="text-sm font-bold text-red-700">{H(totalOutstanding)}</p>
           </div>
           <div className="relative">
@@ -124,7 +124,7 @@ export default function UdharBook() {
                   <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider w-10">#</th>
                   <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">{isUrdu ? 'گاہک' : 'Customer'}</th>
                   <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">{isUrdu ? 'رابطہ' : 'Contact'}</th>
-                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider text-red-300">{isUrdu ? 'کل واجب الادا' : 'Outstanding'}</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider text-red-300">{isUrdu ? 'کل واجب الادا' : 'Total Due Balance'}</th>
                   <th className="px-3 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-24">{isUrdu ? 'فروخت' : 'Sales'}</th>
                   <th className="px-3 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-10"></th>
                 </tr>
@@ -237,7 +237,7 @@ export default function UdharBook() {
                             {/* Total footer */}
                             <div className="px-4 py-2.5 bg-industrial-50 flex justify-between items-center">
                               <span className="text-xs text-industrial-600 font-medium">
-                                {isUrdu ? `${customer.customer_name} کا کل واجب الادا` : `Total Outstanding for ${customer.customer_name}`}
+                                {isUrdu ? `${customer.customer_name} کا کل واجب الادا` : `Total Due Balance for ${customer.customer_name}`}
                               </span>
                               <span className="text-sm font-bold text-red-600">{H(customer.total_pending)}</span>
                             </div>

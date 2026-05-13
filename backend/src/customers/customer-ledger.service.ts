@@ -13,7 +13,7 @@ import { InstallmentDue } from './entities/installment-due.entity';
 import { InstallmentPayment } from './entities/installment-payment.entity';
 import { InstallmentPlan } from './entities/installment-plan.entity';
 import { CustomerManualCredit } from './entities/customer-manual-credit.entity';
-import { Sale } from '../sales/entities/sale.entity';
+import { Sale, SaleStatus } from '../sales/entities/sale.entity';
 import { Payment } from '../payments/entities/payment.entity';
 
 @Injectable()
@@ -109,6 +109,13 @@ export class CustomerLedgerService {
         );
         const salesPending = Number(salesPendingRes[0]?.total_pending ?? 0);
 
+        // Manual credit pending (amount - paid_amount)
+        const manualCreditPendingRes = await this.dataSource.query(
+          `SELECT COALESCE(SUM(amount - paid_amount), 0) as total_pending FROM customer_manual_credits WHERE customer_id = ?`,
+          [customer.id],
+        );
+        const manualCreditPending = Number(manualCreditPendingRes[0]?.total_pending ?? 0);
+
         // Last purchase / payment dates from sales
         const lastSale = await this.dataSource.query(
           `SELECT MAX(s.date) as last_date FROM sales s WHERE s.customer_id = ?`,
@@ -133,7 +140,7 @@ export class CustomerLedgerService {
         };
 
         const ledgerBalance = Number(custLedger.remaining_balance ?? 0);
-        const effectiveBalance = Math.max(ledgerBalance, salesPending);
+        const effectiveBalance = Math.max(ledgerBalance, salesPending + manualCreditPending);
         const effectiveStatus =
           overdueAmount > 0 ? 'overdue' : (effectiveBalance > 0 ? 'active' : 'clear');
 
@@ -294,19 +301,9 @@ export class CustomerLedgerService {
       order: { credit_date: 'DESC' },
     });
 
-    // ── Compute paid distribution for manual credits BEFORE building purchase history ──
+    // ── Compute paid distribution for manual credits directly from mc.paid_amount ──
     const salesPaid = sales.reduce((sum: number, s: any) => sum + Number(s.paid_amount || 0), 0);
-    const manualPaymentsApplied = Math.max(0, Number(ledger.total_paid) - salesPaid);
-    let manualPaymentPool = manualPaymentsApplied;
-    const manualCreditsPaid = manualCredits
-      .slice()
-      .sort((a, b) => (a.credit_date > b.credit_date ? 1 : -1))
-      .map((mc) => {
-        const applied = Math.min(manualPaymentPool, mc.amount);
-        manualPaymentPool -= applied;
-        return { id: mc.id, paid: applied, pending: mc.amount - applied };
-      });
-    const manualPaidMap = new Map(manualCreditsPaid.map((r) => [r.id, r]));
+    const manualTotal = manualCredits.reduce((sum, mc) => sum + mc.amount, 0);
 
     // Merge sales + manual credits into one purchase history, sorted by date desc
     const purchaseHistory = [
@@ -321,14 +318,14 @@ export class CustomerLedgerService {
         source: 'sale',
       })),
       ...manualCredits.map((mc) => {
-        const paidInfo = manualPaidMap.get(mc.id) ?? { paid: 0, pending: mc.amount };
+        const pendingAmt = mc.amount - mc.paid_amount;
         return {
           id: mc.id,
           date: mc.credit_date,
           total_amount: mc.amount,
-          paid_amount: paidInfo.paid,
-          pending_amount: paidInfo.pending,
-          status: paidInfo.pending <= 0 ? 'paid' : paidInfo.paid > 0 ? 'partial' : 'pending',
+          paid_amount: mc.paid_amount,
+          pending_amount: pendingAmt,
+          status: pendingAmt <= 0 ? 'paid' : mc.paid_amount > 0 ? 'partial' : 'pending',
           items_summary: mc.item_description,
           notes: mc.notes,
           source: 'manual',
@@ -349,7 +346,7 @@ export class CustomerLedgerService {
     // ── Live summary computed from actual sales + manual credits ──────────────
     const salesTotal = sales.reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0);
     const salesPending = sales.reduce((sum: number, s: any) => sum + Number(s.pending_amount || 0), 0);
-    const manualTotal = manualCredits.reduce((sum, mc) => sum + mc.amount, 0);
+    const manualPaymentsApplied = manualCredits.reduce((sum, mc) => sum + mc.paid_amount, 0);
     const totalPurchased = salesTotal + manualTotal;
     const totalPaid = salesPaid + manualPaymentsApplied;
     const remainingBalance = salesPending + (manualTotal - manualPaymentsApplied);
@@ -564,6 +561,45 @@ export class CustomerLedgerService {
       // General payment toward a plan — apply to oldest pending due
       await this.applyPaymentToPlan(body.installment_plan_id, remaining, body.payment_date);
       await this.recalculatePlan(body.installment_plan_id);
+    } else {
+      // General payment (no plan, no due) — apply to pending sales oldest-first,
+      // then to pending manual credits oldest-first
+      let saleRemaining = body.amount;
+      const pendingSales = await this.salesRepo.find({
+        where: { customer_id: customerId },
+        order: { date: 'ASC' },
+      });
+      for (const sale of pendingSales) {
+        if (saleRemaining <= 0) break;
+        if (sale.pending_amount <= 0) continue;
+        const apply = Math.min(saleRemaining, sale.pending_amount);
+        sale.paid_amount += apply;
+        sale.pending_amount = Math.max(0, sale.total_amount - sale.paid_amount);
+        sale.status =
+          sale.pending_amount === 0
+            ? SaleStatus.PAID
+            : sale.paid_amount > 0
+            ? SaleStatus.PARTIAL
+            : SaleStatus.PENDING;
+        await this.salesRepo.save(sale);
+        saleRemaining -= apply;
+      }
+      // Apply leftover to pending manual credits oldest-first
+      if (saleRemaining > 0) {
+        const manualCredits = await this.manualCreditsRepo.find({
+          where: { customer_id: customerId },
+          order: { credit_date: 'ASC' },
+        });
+        for (const mc of manualCredits) {
+          if (saleRemaining <= 0) break;
+          const pendingMc = mc.amount - mc.paid_amount;
+          if (pendingMc <= 0) continue;
+          const apply = Math.min(saleRemaining, pendingMc);
+          mc.paid_amount += apply;
+          await this.manualCreditsRepo.save(mc);
+          saleRemaining -= apply;
+        }
+      }
     }
 
     // Update ledger totals

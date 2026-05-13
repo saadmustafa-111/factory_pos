@@ -8,6 +8,7 @@ export interface FontSizeSettings {
   table: SizeStep;
   heading: SizeStep;
   body: SizeStep;
+  sidebar: SizeStep;
 }
 
 interface FontSizeContextValue {
@@ -15,12 +16,13 @@ interface FontSizeContextValue {
   setTableSize: (v: SizeStep) => void;
   setHeadingSize: (v: SizeStep) => void;
   setBodySize: (v: SizeStep) => void;
+  setSidebarSize: (v: SizeStep) => void;
   reset: () => void;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const DEFAULTS: FontSizeSettings = { table: 'base', heading: 'base', body: 'base' };
+const DEFAULTS: FontSizeSettings = { table: 'base', heading: 'base', body: 'base', sidebar: 'base' };
 const LS_KEY = 'pos_font_sizes';
 
 // ─── DOM application ─────────────────────────────────────────────────────────
@@ -30,6 +32,7 @@ function applyToDOM(s: FontSizeSettings) {
   root.setAttribute('data-table-size', s.table);
   root.setAttribute('data-heading-size', s.heading);
   root.setAttribute('data-body-size', s.body);
+  root.setAttribute('data-sidebar-size', s.sidebar);
 }
 
 // ─── Context ─────────────────────────────────────────────────────────────────
@@ -55,10 +58,11 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
   const setTableSize = (table: SizeStep) => setSettings((s) => ({ ...s, table }));
   const setHeadingSize = (heading: SizeStep) => setSettings((s) => ({ ...s, heading }));
   const setBodySize = (body: SizeStep) => setSettings((s) => ({ ...s, body }));
+  const setSidebarSize = (sidebar: SizeStep) => setSettings((s) => ({ ...s, sidebar }));
   const reset = () => setSettings(DEFAULTS);
 
   return (
-    <FontSizeContext.Provider value={{ settings, setTableSize, setHeadingSize, setBodySize, reset }}>
+    <FontSizeContext.Provider value={{ settings, setTableSize, setHeadingSize, setBodySize, setSidebarSize, reset }}>
       {children}
     </FontSizeContext.Provider>
   );
