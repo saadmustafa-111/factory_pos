@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Calculator as CalcIcon, Delete, History, MoreVertical, RotateCcw, Trash2, X } from 'lucide-react';
 import { Card } from '../components/ui/card';
-import { useLang } from '../lib/i18n';
+import { useLang } from '../lib/i18n.tsx';
 
 type Operator = '+' | '-' | '*' | '/';
 type HistoryEntry = {
@@ -45,10 +45,47 @@ export default function CalculatorPage() {
     }
   });
 
-  // UI state
+  // UI state (must be above useEffect)
   const [menuOpen, setMenuOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Keyboard support
+  useEffect(() => {
+    if (historyOpen) return; // Don't handle keys when history overlay is open
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const key = e.key;
+      if (key >= '0' && key <= '9') {
+        inputDigit(key);
+        e.preventDefault();
+      } else if (key === '.' || key === ',') {
+        inputDot();
+        e.preventDefault();
+      } else if (key === '+' || key === '-' || key === '*' || key === '/') {
+        pickOperator(key as Operator);
+        e.preventDefault();
+      } else if (key === 'Enter' || key === '=') {
+        equals();
+        e.preventDefault();
+      } else if (key === 'Backspace') {
+        backspace();
+        e.preventDefault();
+      } else if (key === 'Escape') {
+        clearAll();
+        e.preventDefault();
+      } else if (key === '%') {
+        percent();
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [current, operator, previous, overwrite, historyOpen]);
+    
+
+  // UI state
+  // (already declared above)
 
   useEffect(() => {
     window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
