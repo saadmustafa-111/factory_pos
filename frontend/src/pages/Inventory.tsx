@@ -90,6 +90,7 @@ function PaginationBar({
 }
 
 export default function Inventory() {
+    const [stockCategory, setStockCategory] = useState<'all' | 'cement' | 'steel'>('all');
   const { t, isUrdu } = useLang();
   const locale = isUrdu ? 'ur-PK' : 'en-PK';
   const [products, setProducts] = useState<Product[]>([]);
@@ -150,17 +151,37 @@ export default function Inventory() {
   const paymentStatus = pendingToMill === 0 ? 'paid' : netPaidToMill > 0 ? 'partial' : 'pending';
 
   const filteredStock = useMemo(() => {
-    if (!stockQuery.trim()) return stock;
-    return stock.filter((row) => {
+    let filtered = stock;
+    if (stockCategory === 'cement') {
+      filtered = filtered.filter((row) => row.product?.category === 'cement');
+    } else if (stockCategory === 'steel') {
+      filtered = filtered.filter((row) =>
+        row.product?.category === 'sariya' ||
+        row.product?.category === 'rings' ||
+        row.product?.category === 'wire'
+      );
+    }
+    if (!stockQuery.trim()) return filtered;
+    return filtered.filter((row) => {
       const name = String(localizeApiText(row.product?.name, isUrdu) || '');
       const typeBrand = String(localizeApiText(row.cement_brand?.brand_name || row.product?.type, isUrdu) || '');
       return matchesSearch(`${name} ${typeBrand}`, stockQuery);
     });
-  }, [stock, stockQuery, isUrdu]);
+  }, [stock, stockQuery, isUrdu, stockCategory]);
 
   const filteredHistory = useMemo(() => {
-    if (!historyQuery.trim()) return history;
-    return history.filter((row) => {
+    let filtered = history;
+    if (stockCategory === 'cement') {
+      filtered = filtered.filter((row) => row.product?.category === 'cement');
+    } else if (stockCategory === 'steel') {
+      filtered = filtered.filter((row) =>
+        row.product?.category === 'sariya' ||
+        row.product?.category === 'rings' ||
+        row.product?.category === 'wire'
+      );
+    }
+    if (!historyQuery.trim()) return filtered;
+    return filtered.filter((row) => {
       const searchable = [
         localizeApiText(row.supplier?.name, isUrdu),
         localizeApiText(row.product?.name, isUrdu),
@@ -171,7 +192,7 @@ export default function Inventory() {
         .join(' ');
       return matchesSearch(searchable, historyQuery);
     });
-  }, [history, historyQuery, isUrdu]);
+  }, [history, historyQuery, isUrdu, stockCategory]);
 
   const stockTotalPages = Math.max(1, Math.ceil(filteredStock.length / stockPageSize));
   const historyTotalPages = Math.max(1, Math.ceil(filteredHistory.length / historyPageSize));
@@ -665,8 +686,8 @@ export default function Inventory() {
 
         {/* ── Left: Current Stock ── */}
         <div className="w-80 xl:w-96 shrink-0 flex flex-col rounded-xl border-2 border-industrial-200 bg-white overflow-hidden">
-          <div className="flex items-center justify-between gap-2 border-b border-industrial-200 bg-industrial-50 px-4 py-3 shrink-0">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center border-b border-industrial-200 bg-industrial-50 px-2 py-2 shrink-0 overflow-x-auto scrollbar-none gap-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex items-center gap-2 flex-shrink-0">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-secondary/15">
                 <Package className="h-4 w-4 text-accent-secondary" />
               </div>
@@ -675,7 +696,25 @@ export default function Inventory() {
                 <p className="text-[11px] text-industrial-500">{isUrdu ? 'لائیو مقداریں' : 'Live quantities'}</p>
               </div>
             </div>
-            <div className="relative w-36">
+            <button
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${stockCategory === 'all' ? 'bg-industrial-700 text-white' : 'bg-industrial-100 text-industrial-700 hover:bg-industrial-200'}`}
+              onClick={() => setStockCategory('all')}
+            >
+              {isUrdu ? 'تمام' : 'All'}
+            </button>
+            <button
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${stockCategory === 'cement' ? 'bg-orange-600 text-white' : 'bg-industrial-100 text-industrial-700 hover:bg-industrial-200'}`}
+              onClick={() => setStockCategory('cement')}
+            >
+              {isUrdu ? 'سیمنٹ' : 'Cement'}
+            </button>
+            <button
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${stockCategory === 'steel' ? 'bg-blue-700 text-white' : 'bg-industrial-100 text-industrial-700 hover:bg-industrial-200'}`}
+              onClick={() => setStockCategory('steel')}
+            >
+              {isUrdu ? 'سٹیل' : 'Steel'}
+            </button>
+            <div className="relative w-36 flex-shrink-0">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-industrial-400" />
               <Input value={stockQuery} onChange={(e) => setStockQuery(e.target.value)} placeholder={isUrdu ? 'تلاش...' : 'Search...'} className="pl-8 h-8 text-xs" />
             </div>
@@ -729,8 +768,8 @@ export default function Inventory() {
 
         {/* ── Right: Stock History ── */}
         <div className="flex-1 flex flex-col rounded-xl border-2 border-industrial-200 bg-white overflow-hidden min-w-0">
-          <div className="flex items-center justify-between gap-2 border-b border-industrial-200 bg-industrial-50 px-4 py-3 shrink-0">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center border-b border-industrial-200 bg-industrial-50 px-2 py-2 shrink-0 overflow-x-auto scrollbar-none gap-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex items-center gap-2 flex-shrink-0">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-primary/10">
                 <Calendar className="h-4 w-4 text-accent-primary" />
               </div>
@@ -739,7 +778,25 @@ export default function Inventory() {
                 <p className="text-[11px] text-industrial-500">{isUrdu ? 'تمام اسٹاک اندراجات' : 'All stock entries'}</p>
               </div>
             </div>
-            <div className="relative w-52">
+            <button
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${stockCategory === 'all' ? 'bg-industrial-700 text-white' : 'bg-industrial-100 text-industrial-700 hover:bg-industrial-200'}`}
+              onClick={() => setStockCategory('all')}
+            >
+              {isUrdu ? 'تمام' : 'All'}
+            </button>
+            <button
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${stockCategory === 'cement' ? 'bg-orange-600 text-white' : 'bg-industrial-100 text-industrial-700 hover:bg-industrial-200'}`}
+              onClick={() => setStockCategory('cement')}
+            >
+              {isUrdu ? 'سیمنٹ' : 'Cement'}
+            </button>
+            <button
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${stockCategory === 'steel' ? 'bg-blue-700 text-white' : 'bg-industrial-100 text-industrial-700 hover:bg-industrial-200'}`}
+              onClick={() => setStockCategory('steel')}
+            >
+              {isUrdu ? 'سٹیل' : 'Steel'}
+            </button>
+            <div className="relative w-52 flex-shrink-0">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-industrial-400" />
               <Input value={historyQuery} onChange={(e) => setHistoryQuery(e.target.value)} placeholder={isUrdu ? 'سپلائر، پروڈکٹ تلاش کریں' : 'Search supplier, product...'} className="pl-8 h-8 text-xs" />
             </div>

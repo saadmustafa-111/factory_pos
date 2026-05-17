@@ -114,13 +114,21 @@ export default function MillLedger() {
     cleared: suppliers.filter((r) => r.balance <= 0).length,
   }), [suppliers]);
 
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const filteredSuppliers = useMemo(() => {
+    const q = supplierSearch.trim().toLowerCase();
+    if (!q) return suppliers;
+    return suppliers.filter(s =>
+      s.supplier.name.toLowerCase().includes(q) || (s.supplier.phone && s.supplier.phone.includes(q))
+    );
+  }, [suppliers, supplierSearch]);
   const sortedSuppliers = useMemo(() => {
-    return [...suppliers].sort((a, b) => {
+    return [...filteredSuppliers].sort((a, b) => {
       if (sortBy === 'name') return a.supplier.name.localeCompare(b.supplier.name);
       if (sortBy === 'balance') return b.balance - a.balance;
       return b.totalPurchased - a.totalPurchased;
     });
-  }, [suppliers, sortBy]);
+  }, [filteredSuppliers, sortBy]);
 
   const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -246,7 +254,15 @@ export default function MillLedger() {
             </button>
           )}
         </div>
-        <div className="flex-1 overflow-y-auto py-2 px-2 flex flex-col gap-1">
+        <div className="px-2 pt-2 pb-1">
+          <Input
+            value={supplierSearch}
+            onChange={e => setSupplierSearch(e.target.value)}
+            placeholder="Search..."
+            className="h-8 text-xs px-2"
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto pb-2 px-2 flex flex-col gap-1">
           {sortedSuppliers.map((s) => {
             const isSelected = selectedId === s.supplier.id;
             return (
@@ -266,7 +282,7 @@ export default function MillLedger() {
                     {s.supplier.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className={`font-semibold truncate text-sm ${isSelected ? 'text-white' : 'text-industrial-900'}`}>
+                    <p className={`font-semibold truncate text-sm ${isSelected ? 'text-white' : 'text-industrial-900'}`}> 
                       {localizeApiText(s.supplier.name, isUrdu)}
                     </p>
                     <p className={`text-xs font-semibold mt-0.5 ${
@@ -281,10 +297,10 @@ export default function MillLedger() {
               </button>
             );
           })}
-          {suppliers.length === 0 && (
+          {filteredSuppliers.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-industrial-400 gap-2">
               <Building2 className="h-8 w-8 text-industrial-300" />
-              <p>No suppliers yet</p>
+              <p>No dealers found</p>
             </div>
           )}
         </div>

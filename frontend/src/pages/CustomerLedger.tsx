@@ -76,7 +76,7 @@ export default function CustomerLedger() {
   const [payAmount, setPayAmount] = useState('');
   const [paying, setPaying] = useState(false);
   const [obModal, setObModal] = useState<{ customer_id: number; name: string } | null>(null);
-  const [obForm, setObForm] = useState({ description: '', amount: '', date: new Date().toISOString().slice(0, 10) });
+  const [obForm, setObForm] = useState({ description: '', amount: '', discount: '', date: new Date().toISOString().slice(0, 10) });
   const [obSaving, setObSaving] = useState(false);
 
   const loadSummary = async () => {
@@ -150,13 +150,21 @@ export default function CustomerLedger() {
     cleared: customers.filter((r) => r.remaining_balance <= 0).length,
   }), [customers]);
 
+  const [customerSearch, setCustomerSearch] = useState('');
+  const filteredCustomers = useMemo(() => {
+    const q = customerSearch.trim().toLowerCase();
+    if (!q) return customers;
+    return customers.filter(c =>
+      c.name.toLowerCase().includes(q) || (c.phone && c.phone.includes(q))
+    );
+  }, [customers, customerSearch]);
   const sortedCustomers = useMemo(() => {
-    return [...customers].sort((a, b) => {
+    return [...filteredCustomers].sort((a, b) => {
       if (sortBy === 'name') return a.name.localeCompare(b.name);
       if (sortBy === 'balance') return b.remaining_balance - a.remaining_balance;
       return b.total_purchased - a.total_purchased;
     });
-  }, [customers, sortBy]);
+  }, [filteredCustomers, sortBy]);
 
   const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -182,15 +190,20 @@ export default function CustomerLedger() {
 
   const submitOpeningBalance = async () => {
     if (!obModal || !obForm.description || !obForm.amount) return;
+    const amountNum = Number(obForm.amount) || 0;
+    const discountNum = Number(obForm.discount) || 0;
+    const finalAmount = Math.max(0, amountNum - discountNum);
     setObSaving(true);
     try {
       await api.post(`/customers/${obModal.customer_id}/manual-credit`, {
         item_description: obForm.description,
-        amount: Number(obForm.amount),
+        amount: finalAmount,
         credit_date: obForm.date,
+        original_amount: amountNum,
+        discount: discountNum,
       });
       setObModal(null);
-      setObForm({ description: '', amount: '', date: new Date().toISOString().slice(0, 10) });
+      setObForm({ description: '', amount: '', discount: '', date: new Date().toISOString().slice(0, 10) });
       await loadSummary();
       await loadLedger(obModal.customer_id);
     } finally {
@@ -278,7 +291,15 @@ export default function CustomerLedger() {
               </button>
             )}
           </div>
-          <div className="flex-1 overflow-y-auto py-2 px-2 flex flex-col gap-1">
+          <div className="px-2 pt-2 pb-1">
+            <Input
+              value={customerSearch}
+              onChange={e => setCustomerSearch(e.target.value)}
+              placeholder="Search..."
+              className="h-8 text-xs px-2"
+            />
+          </div>
+          <div className="flex-1 overflow-y-auto pb-2 px-2 flex flex-col gap-1">
             {sortedCustomers.map((c) => {
               const isSelected = selectedId === c.id;
               return (
@@ -298,7 +319,7 @@ export default function CustomerLedger() {
                       {c.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className={`font-semibold truncate text-sm ${isSelected ? 'text-white' : 'text-industrial-900'}`}>
+                      <p className={`font-semibold truncate text-sm ${isSelected ? 'text-white' : 'text-industrial-900'}`}> 
                         {localizeApiText(c.name, isUrdu)}
                       </p>
                       <p className={`text-xs font-semibold mt-0.5 ${
@@ -313,10 +334,10 @@ export default function CustomerLedger() {
                 </button>
               );
             })}
-            {customers.length === 0 && (
+            {filteredCustomers.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-industrial-400 gap-2">
                 <Users className="h-8 w-8 text-industrial-300" />
-                <p>No customers yet</p>
+                <p>No customers found</p>
               </div>
             )}
           </div>
@@ -759,6 +780,26 @@ export default function CustomerLedger() {
                 onChange={(e) => setObForm({ ...obForm, amount: e.target.value })}
                 className="text-lg font-bold"
               />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-industrial-700">Discount (Rs)</label>
+              <Input
+                type="number"
+                placeholder="0"
+                value={obForm.discount}
+                onChange={(e) => setObForm({ ...obForm, discount: e.target.value })}
+                className="text-lg font-bold"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-industrial-700">Final Amount</label>
+              <div className="h-10 w-full rounded-lg border-2 border-industrial-200 px-3 text-lg font-bold flex items-center bg-industrial-50">
+                {(() => {
+                  const amountNum = Number(obForm.amount) || 0;
+                  const discountNum = Number(obForm.discount) || 0;
+                  return Math.max(0, amountNum - discountNum).toLocaleString();
+                })()}
+              </div>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-industrial-700">Date</label>

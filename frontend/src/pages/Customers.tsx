@@ -58,6 +58,8 @@ export default function Customers() {
 
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [summary, setSummary] = useState<OverdueSummary | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<CustomerRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -299,6 +301,11 @@ export default function Customers() {
                           <AttachmentManager entityType="customer" entityId={c.id} label={c.name} />
                         </span>
                         <button
+                          onClick={(e) => { e.stopPropagation(); setEditingCustomer(c); setEditModalOpen(true); }}
+                          className="inline-flex items-center gap-1 rounded-lg bg-blue-500 text-white px-3 py-1.5 text-[10px] font-bold hover:bg-blue-600 transition-colors whitespace-nowrap">
+                          {isUrdu ? 'ترمیم' : 'Edit'}
+                        </button>
+                        <button
                           onClick={(e) => { e.stopPropagation(); navigate(`/customers/${c.id}`); }}
                           className="inline-flex items-center gap-1 rounded-lg bg-accent-primary text-white px-3 py-1.5 text-[10px] font-bold hover:bg-accent-primary/90 transition-colors whitespace-nowrap">
                           {isUrdu ? 'تفصیل' : 'View Details'}
@@ -318,6 +325,12 @@ export default function Customers() {
         open={addModalOpen}
         onClose={() => setAddModalOpen(false)}
         onSuccess={() => { setAddModalOpen(false); load(); }}
+      />
+      <CustomerFormModal
+        open={editModalOpen}
+        onClose={() => { setEditModalOpen(false); setEditingCustomer(null); }}
+        onSuccess={() => { setEditModalOpen(false); setEditingCustomer(null); load(); }}
+        editCustomer={editingCustomer}
       />
     </div>
   );

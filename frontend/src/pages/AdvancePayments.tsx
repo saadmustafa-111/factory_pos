@@ -135,11 +135,14 @@ export default function AdvancePayments() {
     { key: 'completed', label: t.completedAdvance },
   ];
 
-  const totalAdvances = advances.filter((a) => a.status !== 'cancelled').length;
-  const pendingPickups = advances.filter((a) => a.status === 'pending' || a.status === 'partial').length;
-  const totalAmount = advances
-    .filter((a) => a.status !== 'cancelled')
-    .reduce((sum, a) => sum + a.paid_amount, 0);
+  // Always recalculate summary from latest advances state
+  const getSummary = (list: AdvancePayment[]) => {
+    const totalAdvances = list.filter((a) => a.status !== 'cancelled').length;
+    const pendingPickups = list.filter((a) => a.status === 'pending' || a.status === 'partial').length;
+    const totalAmount = list.filter((a) => a.status !== 'cancelled').reduce((sum, a) => sum + a.paid_amount, 0);
+    return { totalAdvances, pendingPickups, totalAmount };
+  };
+  const { totalAdvances, pendingPickups, totalAmount } = getSummary(advances);
 
   return (
     <div className={`flex flex-col h-[calc(100vh-9rem)] gap-3 ${isUrdu ? 'font-urdu' : ''}`}>
@@ -296,10 +299,10 @@ export default function AdvancePayments() {
             setShowPickupModal(false);
             setSelectedAdvance(null);
           }}
-          onProcessed={() => {
+          onProcessed={async () => {
             setShowPickupModal(false);
             setSelectedAdvance(null);
-            loadAdvances();
+            await loadAdvances();
           }}
         />
       )}
