@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertCircle, ArrowUpDown, Building2, CheckCircle2, CreditCard, Eye, EyeOff, FileDown, Package, Plus, TrendingDown, Wallet } from 'lucide-react';
+import { AlertCircle, ArrowUpDown, Building2, CalendarDays, CheckCircle2, CreditCard, Eye, EyeOff, FileDown, Package, Plus, TrendingDown, Wallet, Edit2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Modal } from '../components/ui/modal';
@@ -14,7 +14,7 @@ import { downloadSupplierLedgerPdf } from '../lib/pdfExports';
 interface LedgerEntry {
   id: string;
   date: string;
-  type: 'purchase' | 'payment';
+  type: 'purchase' | 'payment' | 'opening';
   description: string;
   qty?: number;
   rate?: number;
@@ -23,6 +23,8 @@ interface LedgerEntry {
   balance: number;
   inventory_id?: number;
   payment_status?: string;
+  editable_type?: 'opening' | 'manual_payment' | 'mill_payment' | 'stock_in_payment';
+  editable_id?: number;
 }
 
 interface ProductRow {
@@ -51,6 +53,14 @@ interface SupplierSummary {
   totalPaid: number;
 }
 
+const todayInputValue = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function MillLedger() {
   const { isUrdu } = useLang();
   const locale = isUrdu ? 'ur-PK' : 'en-PK';
@@ -73,9 +83,10 @@ export default function MillLedger() {
   const [sortBy, setSortBy] = useState<'name' | 'balance' | 'purchased'>('balance');
   const [payModal, setPayModal] = useState<{ inv_id: number; supplier_id: number; max: number; description: string } | null>(null);
   const [payAmount, setPayAmount] = useState('');
+  const [payDate, setPayDate] = useState(todayInputValue());
   const [paying, setPaying] = useState(false);
-  const [adjModal, setAdjModal] = useState<{ supplier_id: number; name: string } | null>(null);
-  const [adjForm, setAdjForm] = useState({ type: 'debit' as 'debit' | 'credit', description: '', amount: '', date: new Date().toISOString().slice(0, 10) });
+  const [adjModal, setAdjModal] = useState<{ supplier_id: number; name: string; mode?: 'adjust' | 'correction' | 'edit'; editType?: 'opening' | 'manual_payment' | 'mill_payment' | 'stock_in_payment'; editId?: number } | null>(null);
+  const [adjForm, setAdjForm] = useState({ type: 'debit' as 'debit' | 'credit', description: '', amount: '', date: todayInputValue() });
   const [adjSaving, setAdjSaving] = useState(false);
 
   const loadSummary = async () => {
@@ -115,6 +126,7 @@ export default function MillLedger() {
   }), [suppliers]);
 
   const [supplierSearch, setSupplierSearch] = useState('');
+  const [ledgerSearch, setLedgerSearch] = useState('');
   const filteredSuppliers = useMemo(() => {
     const q = supplierSearch.trim().toLowerCase();
     if (!q) return suppliers;
@@ -133,18 +145,36 @@ export default function MillLedger() {
   const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
 
+  const filteredEntries = useMemo(() => {
+    const entries = ledger?.entries ?? [];
+    const q = ledgerSearch.trim().toLowerCase();
+    if (!q) return entries;
+    return entries.filter((entry) => [
+      entry.description,
+      entry.type,
+      entry.payment_status,
+      entry.qty?.toString(),
+      entry.rate?.toString(),
+      entry.debit?.toString(),
+      entry.credit?.toString(),
+      entry.balance?.toString(),
+      fmtDate(entry.date),
+    ].some((value) => String(value ?? '').toLowerCase().includes(q)));
+  }, [ledger, ledgerSearch, locale]);
+
   const submitPayment = async () => {
-    if (!payModal || !payAmount) return;
+    if (!payModal || !payAmount || !payDate) return;
     setPaying(true);
     try {
       await api.post('/mill-payments', {
         supplier_id: payModal.supplier_id,
         inventory_id: payModal.inv_id,
         amount_paid: Number(payAmount),
-        payment_date: new Date().toISOString(),
+        payment_date: payDate,
       });
       setPayModal(null);
       setPayAmount('');
+      setPayDate(todayInputValue());
       await loadSummary();
       await loadLedger(payModal.supplier_id);
     } finally {
@@ -156,7 +186,29 @@ export default function MillLedger() {
     if (!adjModal || !adjForm.description || !adjForm.amount) return;
     setAdjSaving(true);
     try {
-      if (adjForm.type === 'debit') {
+      if (adjModal.mode === 'edit' && adjModal.editType === 'opening' && adjModal.editId) {
+        await api.put(`/mill-payments/opening-balance/${adjModal.editId}`, {
+          description: adjForm.description,
+          amount: Number(adjForm.amount),
+          balance_date: adjForm.date,
+        });
+      } else if (adjModal.mode === 'edit' && adjModal.editType === 'manual_payment' && adjModal.editId) {
+        await api.put(`/mill-payments/manual-payment/${adjModal.editId}`, {
+          description: adjForm.description,
+          amount: Number(adjForm.amount),
+          payment_date: adjForm.date,
+        });
+      } else if (adjModal.mode === 'edit' && adjModal.editType === 'mill_payment' && adjModal.editId) {
+        await api.put(`/mill-payments/${adjModal.editId}`, {
+          amount_paid: Number(adjForm.amount),
+          payment_date: adjForm.date,
+          notes: adjForm.description,
+        });
+      } else if (adjModal.mode === 'edit' && adjModal.editType === 'stock_in_payment' && adjModal.editId) {
+        await api.put(`/mill-payments/stock-in-payment/${adjModal.editId}`, {
+          amount_paid: Number(adjForm.amount),
+        });
+      } else if (adjForm.type === 'debit') {
         await api.post(`/mill-payments/${adjModal.supplier_id}/opening-balance`, {
           description: adjForm.description,
           amount: Number(adjForm.amount),
@@ -171,7 +223,7 @@ export default function MillLedger() {
       }
       const sid = adjModal.supplier_id;
       setAdjModal(null);
-      setAdjForm({ type: 'debit', description: '', amount: '', date: new Date().toISOString().slice(0, 10) });
+      setAdjForm({ type: 'debit', description: '', amount: '', date: todayInputValue() });
       await loadSummary();
       await loadLedger(sid);
     } finally {
@@ -453,6 +505,16 @@ export default function MillLedger() {
 
                 {/* Stat pills */}
                 <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    onClick={() => {
+                      setAdjModal({ supplier_id: ledger.supplier.id, name: ledger.supplier.name, mode: 'correction' });
+                      setAdjForm({ type: 'credit', description: '', amount: '', date: new Date().toISOString().slice(0, 10) });
+                    }}
+                    className="flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                    Correction Entry
+                  </button>
                   <div className="text-center px-4 py-2 rounded-xl bg-slate-50 border border-slate-200">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Purchased</p>
                     <p className="text-base font-bold text-slate-800">{HT(ledger.totalDebit)}</p>
@@ -489,7 +551,10 @@ export default function MillLedger() {
                     PDF
                   </button>
                   <button
-                    onClick={() => setAdjModal({ supplier_id: ledger.supplier.id, name: ledger.supplier.name })}
+                    onClick={() => {
+                      setAdjModal({ supplier_id: ledger.supplier.id, name: ledger.supplier.name, mode: 'adjust' });
+                      setAdjForm({ type: 'debit', description: '', amount: '', date: new Date().toISOString().slice(0, 10) });
+                    }}
                     className="flex items-center gap-1.5 rounded-xl border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
                   >
                     <Plus className="h-4 w-4" />
@@ -526,6 +591,16 @@ export default function MillLedger() {
                   )}
                 </button>
               ))}
+              {activeTab === 'ledger' && (
+                <div className="ml-auto flex items-center py-2">
+                  <Input
+                    value={ledgerSearch}
+                    onChange={(e) => setLedgerSearch(e.target.value)}
+                    placeholder="Search entries..."
+                    className="h-8 w-56 text-xs"
+                  />
+                </div>
+              )}
             </div>
 
             {/* ── Tab content ── */}
@@ -601,10 +676,11 @@ export default function MillLedger() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-industrial-100">
-                    {ledger.entries.length === 0 ? (
+                    {filteredEntries.length === 0 ? (
                       <tr><td colSpan={8} className="py-16 text-center text-industrial-400">No transactions yet</td></tr>
-                    ) : ledger.entries.map((entry) => {
+                    ) : filteredEntries.map((entry) => {
                       const isPurchase = entry.type === 'purchase';
+                      const isEditable = !!entry.editable_type && !!entry.editable_id;
                       return (
                         <tr
                           key={entry.id}
@@ -618,7 +694,7 @@ export default function MillLedger() {
                               <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[9px] font-bold ${
                                 isPurchase ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'
                               }`}>
-                                {isPurchase ? 'DR' : 'CR'}
+                                {entry.type === 'payment' ? 'CR' : 'DR'}
                               </span>
                               <span className="font-medium text-industrial-800">{entry.description}</span>
                               {entry.payment_status && isPurchase && (
@@ -668,6 +744,7 @@ export default function MillLedger() {
                                       description: entry.description,
                                     });
                                     setPayAmount(String(pending));
+                                    setPayDate(todayInputValue());
                                   }}
                                   className="flex items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-green-700 transition-colors"
                                 >
@@ -680,6 +757,28 @@ export default function MillLedger() {
                                   entityId={entry.inventory_id}
                                   label={entry.description}
                                 />
+                              )}
+                              {isEditable && (
+                                <button
+                                  onClick={() => {
+                                    setAdjModal({
+                                      supplier_id: ledger.supplier.id,
+                                      name: ledger.supplier.name,
+                                      mode: 'edit',
+                                      editType: entry.editable_type,
+                                      editId: entry.editable_id,
+                                    });
+                                    setAdjForm({
+                                      type: entry.editable_type === 'opening' ? 'debit' : 'credit',
+                                      description: entry.description,
+                                      amount: String(entry.debit > 0 ? entry.debit : entry.credit),
+                                      date: String(entry.date).slice(0, 10),
+                                    });
+                                  }}
+                                  className="flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+                                >
+                                  <Edit2 className="h-3 w-3" /> Edit
+                                </button>
                               )}
                             </div>
                           </td>
@@ -731,8 +830,19 @@ export default function MillLedger() {
                 className="text-lg font-bold"
               />
             </div>
+            <div>
+              <label className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-industrial-700">
+                <CalendarDays className="h-4 w-4 text-industrial-500" />
+                Payment Date
+              </label>
+              <Input
+                type="date"
+                value={payDate}
+                onChange={(e) => setPayDate(e.target.value)}
+              />
+            </div>
             <div className="flex gap-3 pt-2">
-              <Button onClick={submitPayment} disabled={paying || !payAmount} className="flex-1">
+              <Button onClick={submitPayment} disabled={paying || !payAmount || !payDate} className="flex-1">
                 {paying ? 'Saving…' : 'Confirm Payment'}
               </Button>
               <Button onClick={() => setPayModal(null)} variant="outline" className="flex-1">
@@ -745,20 +855,26 @@ export default function MillLedger() {
 
       {/* ── Adjust Balance Modal ── */}
       {adjModal && (
-        <Modal open={!!adjModal} title={`Adjust Balance — ${adjModal.name}`} onClose={() => setAdjModal(null)}>
+        <Modal
+          open={!!adjModal}
+          title={`${adjModal.mode === 'edit' ? 'Edit Entry' : adjModal.mode === 'correction' ? 'Correction Entry' : 'Adjust Balance'} — ${adjModal.name}`}
+          onClose={() => setAdjModal(null)}
+        >
           <div className="space-y-4">
             {/* Type selector */}
             <div className="grid grid-cols-2 gap-2">
               <button
+                disabled={adjModal.mode === 'edit'}
                 onClick={() => setAdjForm({ ...adjForm, type: 'debit' })}
-                className={`rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-colors ${adjForm.type === 'debit' ? 'border-red-400 bg-red-50 text-red-700' : 'border-industrial-200 bg-white text-industrial-500 hover:bg-industrial-50'}`}
+                className={`rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-60 ${adjForm.type === 'debit' ? 'border-red-400 bg-red-50 text-red-700' : 'border-industrial-200 bg-white text-industrial-500 hover:bg-industrial-50'}`}
               >
                 <div className="text-base">📦 Purana Udhar</div>
                 <div className="text-xs font-normal mt-0.5 opacity-70">Dealer ko jo pehle se dena tha</div>
               </button>
               <button
+                disabled={adjModal.mode === 'edit'}
                 onClick={() => setAdjForm({ ...adjForm, type: 'credit' })}
-                className={`rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-colors ${adjForm.type === 'credit' ? 'border-green-400 bg-green-50 text-green-700' : 'border-industrial-200 bg-white text-industrial-500 hover:bg-industrial-50'}`}
+                className={`rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-60 ${adjForm.type === 'credit' ? 'border-green-400 bg-green-50 text-green-700' : 'border-industrial-200 bg-white text-industrial-500 hover:bg-industrial-50'}`}
               >
                 <div className="text-base">💵 Pehli Payment</div>
                 <div className="text-xs font-normal mt-0.5 opacity-70">Jo payment pehle ho chuki thi</div>
@@ -794,7 +910,15 @@ export default function MillLedger() {
                 disabled={adjSaving || !adjForm.description || !adjForm.amount}
                 className={`flex-1 ${adjForm.type === 'debit' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
               >
-                {adjSaving ? 'Saving…' : adjForm.type === 'debit' ? 'Add Purana Udhar' : 'Add Pehli Payment'}
+                {adjSaving
+                  ? 'Saving…'
+                  : adjModal.mode === 'edit'
+                  ? 'Save Entry'
+                  : adjModal.mode === 'correction'
+                  ? 'Add Correction'
+                  : adjForm.type === 'debit'
+                  ? 'Add Purana Udhar'
+                  : 'Add Pehli Payment'}
               </Button>
               <Button onClick={() => setAdjModal(null)} variant="outline" className="flex-1">Cancel</Button>
             </div>
@@ -804,5 +928,3 @@ export default function MillLedger() {
     </div>
   );
 }
-
-

@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertCircle, ArrowUpDown, CheckCircle2, CreditCard, Eye, EyeOff, FileDown, Plus, TrendingDown, Users, Wallet } from 'lucide-react';
+import { AlertCircle, ArrowUpDown, CheckCircle2, CreditCard, Eye, EyeOff, FileDown, Pencil, Plus, TrendingDown, Users, Wallet } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Modal } from '../components/ui/modal';
+import { AttachmentManager } from '../components/AttachmentManager';
+import { CustomerFormModal } from '../components/CustomerFormModal';
 import { api } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { localizeApiText } from '../lib/localize';
 import { fmtCurrency } from '../lib/utils';
 import { downloadCustomerLedgerPdf } from '../lib/pdfExports';
+import { RecordAdvanceModal, type CementBrand, type Customer, type Product } from './AdvancePayments';
 
 interface LedgerEntry {
   id: string;
@@ -18,7 +21,9 @@ interface LedgerEntry {
   debit: number;
   credit: number;
   balance: number;
+  discount_amount?: number;
   sale_id?: number;
+  manual_credit_id?: number;
   payment_status?: string;
 }
 
@@ -31,6 +36,7 @@ interface SaleRow {
   status: string;
   items_summary: string;
   source: string;
+  notes?: string;
 }
 
 interface CustomerLedgerData {
@@ -72,12 +78,22 @@ export default function CustomerLedger() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'ledger' | 'sales'>('ledger');
   const [sortBy, setSortBy] = useState<'name' | 'balance' | 'purchased'>('balance');
-  const [payModal, setPayModal] = useState<{ sale_id: number; customer_id: number; max: number; description: string } | null>(null);
+  const [payModal, setPayModal] = useState<{ sale_id?: number; customer_id: number; customer_name?: string; max: number; description: string; general?: boolean } | null>(null);
   const [payAmount, setPayAmount] = useState('');
+  const [payDiscount, setPayDiscount] = useState('');
+  const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
+  const [payMethod, setPayMethod] = useState('cash');
   const [paying, setPaying] = useState(false);
-  const [obModal, setObModal] = useState<{ customer_id: number; name: string } | null>(null);
+  const [obModal, setObModal] = useState<{ customer_id: number; name: string; manual_credit_id?: number } | null>(null);
+  const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<CustomerLedgerData['customer'] | null>(null);
   const [obForm, setObForm] = useState({ description: '', amount: '', discount: '', date: new Date().toISOString().slice(0, 10) });
   const [obSaving, setObSaving] = useState(false);
+  const [advanceModalOpen, setAdvanceModalOpen] = useState(false);
+  const [advanceCustomerId, setAdvanceCustomerId] = useState<number | undefined>();
+  const [advanceProducts, setAdvanceProducts] = useState<Product[]>([]);
+  const [advanceCementBrands, setAdvanceCementBrands] = useState<CementBrand[]>([]);
+  const [advanceCustomers, setAdvanceCustomers] = useState<Customer[]>([]);
 
   const loadSummary = async () => {
     const { data } = await api.get('/customers/ledger-list');
@@ -100,14 +116,16 @@ export default function CustomerLedger() {
           credit: 0,
           sale_id: s.source === 'sale' ? s.id : undefined,
           payment_status: s.status,
+          manual_credit_id: s.source === 'manual' ? s.id : undefined,
         })),
         ...data.payment_history.map((p: any) => ({
           id: `pay-${p.id}`,
           date: p.payment_date,
           type: 'payment' as const,
-          description: 'Payment received',
+          description: Number(p.discount_amount || 0) > 0 ? 'Payment received + discount' : 'Payment received',
           debit: 0,
-          credit: Number(p.amount_paid),
+          credit: Number(p.total_credit ?? (Number(p.amount_paid ?? p.amount) + Number(p.discount_amount || 0))),
+          discount_amount: Number(p.discount_amount || 0),
         })),
       ].sort((a, b) => (a.date < b.date ? -1 : 1));
 
@@ -127,6 +145,25 @@ export default function CustomerLedger() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAdvanceFormData = async () => {
+    const [productsRes, brandsRes, customersRes] = await Promise.all([
+      api.get('/products'),
+      api.get('/cement-brands'),
+      api.get('/customers'),
+    ]);
+    setAdvanceProducts(productsRes.data.filter((p: Product) => p.is_active));
+    setAdvanceCementBrands(brandsRes.data);
+    setAdvanceCustomers(customersRes.data?.data ?? customersRes.data ?? []);
+  };
+
+  const openAdvanceModal = async (customerId: number) => {
+    setAdvanceCustomerId(customerId);
+    setAdvanceModalOpen(true);
+    if (advanceProducts.length === 0 || advanceCustomers.length === 0) {
+      await loadAdvanceFormData();
     }
   };
 
@@ -170,17 +207,34 @@ export default function CustomerLedger() {
     new Date(d).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   const submitPayment = async () => {
-    if (!payModal || !payAmount) return;
+    if (!payModal) return;
+    const amountNum = Number(payAmount) || 0;
+    const discountNum = Number(payDiscount) || 0;
+    if (amountNum + discountNum <= 0) return;
     setPaying(true);
     try {
-      await api.post('/customer-payments', {
-        sale_id: payModal.sale_id,
-        customer_id: payModal.customer_id,
-        amount_paid: Number(payAmount),
-        payment_date: new Date().toISOString(),
-      });
+      if (payModal.general || !payModal.sale_id) {
+        await api.post(`/customers/${payModal.customer_id}/record-payment`, {
+          amount: amountNum,
+          discount_amount: discountNum,
+          payment_date: payDate,
+          payment_method: payMethod,
+          notes: 'Collected from customer ledger',
+        });
+      } else {
+        await api.post('/customer-payments', {
+          sale_id: payModal.sale_id,
+          customer_id: payModal.customer_id,
+          amount_paid: amountNum,
+          discount_amount: discountNum,
+          payment_date: payDate,
+        });
+      }
       setPayModal(null);
       setPayAmount('');
+      setPayDiscount('');
+      setPayDate(new Date().toISOString().slice(0, 10));
+      setPayMethod('cash');
       await loadSummary();
       await loadLedger(payModal.customer_id);
     } finally {
@@ -195,13 +249,18 @@ export default function CustomerLedger() {
     const finalAmount = Math.max(0, amountNum - discountNum);
     setObSaving(true);
     try {
-      await api.post(`/customers/${obModal.customer_id}/manual-credit`, {
+      const payload = {
         item_description: obForm.description,
         amount: finalAmount,
         credit_date: obForm.date,
         original_amount: amountNum,
         discount: discountNum,
-      });
+      };
+      if (obModal.manual_credit_id) {
+        await api.put(`/customers/${obModal.customer_id}/manual-credit/${obModal.manual_credit_id}`, payload);
+      } else {
+        await api.post(`/customers/${obModal.customer_id}/manual-credit`, payload);
+      }
       setObModal(null);
       setObForm({ description: '', amount: '', discount: '', date: new Date().toISOString().slice(0, 10) });
       await loadSummary();
@@ -362,6 +421,13 @@ export default function CustomerLedger() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => { setEditingCustomer(null); setCustomerModalOpen(true); }}
+                    className="flex items-center gap-1.5 rounded-lg bg-industrial-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-industrial-900 transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Customer
+                  </button>
+                  <button
                     onClick={() => toggleTable(!tableHidden)}
                     className="flex items-center gap-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-500 transition-colors mr-2"
                   >
@@ -394,11 +460,11 @@ export default function CustomerLedger() {
                     <thead className="sticky top-0 bg-industrial-50 border-b-2 border-industrial-200 z-10">
                       <tr>
                         <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-industrial-500">Customer</th>
-                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Total Billed</th>
-                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Collected</th>
-                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Total Due Balance</th>
+                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">DR / Billed</th>
+                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">CR / Collected</th>
+                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Balance</th>
                         <th className="px-5 py-3 text-center text-xs font-bold uppercase tracking-wider text-industrial-500">Status</th>
-                        <th className="px-5 py-3 w-24"></th>
+                        <th className="px-5 py-3 w-40"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-industrial-100">
@@ -435,12 +501,44 @@ export default function CustomerLedger() {
                             </span>
                           </td>
                           <td className="px-5 py-3.5 text-right">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setSelectedId(c.id); }}
-                              className="text-xs font-semibold text-industrial-500 hover:text-industrial-900 transition-colors"
-                            >
-                              View →
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              {c.remaining_balance > 0 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPayModal({
+                                      customer_id: c.id,
+                                      customer_name: c.name,
+                                      max: c.remaining_balance,
+                                      description: 'Outstanding customer credit balance',
+                                      general: true,
+                                    });
+                                    setPayAmount(String(c.remaining_balance));
+                                    setPayDiscount('');
+                                    setPayDate(new Date().toISOString().slice(0, 10));
+                                    setPayMethod('cash');
+                                  }}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-green-700 transition-colors"
+                                >
+                                  <CreditCard className="h-3 w-3" /> Collect
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openAdvanceModal(c.id);
+                                }}
+                                className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+                              >
+                                <Plus className="h-3 w-3" /> Advance
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setSelectedId(c.id); }}
+                                className="text-xs font-semibold text-industrial-500 hover:text-industrial-900 transition-colors"
+                              >
+                                View →
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -509,6 +607,41 @@ export default function CustomerLedger() {
                       {tableHidden ? 'Show' : 'Hide'}
                     </button>
                     <button
+                      onClick={() => { setEditingCustomer(ledger.customer); setCustomerModalOpen(true); }}
+                      className="flex items-center gap-1.5 rounded-xl border border-industrial-300 bg-white px-3 py-2 text-xs font-semibold text-industrial-700 hover:bg-industrial-50 transition-colors"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Edit Profile
+                    </button>
+                    {ledger.balance > 0 && (
+                      <button
+                        onClick={() => {
+                          setPayModal({
+                            customer_id: ledger.customer.id,
+                            customer_name: ledger.customer.name,
+                            max: ledger.balance,
+                            description: 'Outstanding customer credit balance',
+                            general: true,
+                          });
+                          setPayAmount(String(ledger.balance));
+                          setPayDiscount('');
+                          setPayDate(new Date().toISOString().slice(0, 10));
+                          setPayMethod('cash');
+                        }}
+                        className="flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2 text-xs font-bold text-white hover:bg-green-700 transition-colors"
+                      >
+                        <CreditCard className="h-4 w-4" />
+                        Collect Payment
+                      </button>
+                    )}
+                    <button
+                      onClick={() => openAdvanceModal(ledger.customer.id)}
+                      className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Advance
+                    </button>
+                    <button
                       onClick={() =>
                         downloadCustomerLedgerPdf({
                           customer: ledger.customer,
@@ -574,15 +707,16 @@ export default function CustomerLedger() {
                       <tr>
                         <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-industrial-500">Date</th>
                         <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-industrial-500">Items</th>
-                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Billed</th>
-                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Collected</th>
-                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Total Due Balance</th>
+                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">DR / Billed</th>
+                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">CR / Collected</th>
+                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Balance</th>
                         <th className="px-5 py-3 text-center text-xs font-bold uppercase tracking-wider text-industrial-500">Status</th>
+                        <th className="px-5 py-3 w-28"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-industrial-100">
                       {ledger.salesHistory.length === 0 ? (
-                        <tr><td colSpan={6} className="py-16 text-center text-industrial-400">No sales yet</td></tr>
+                        <tr><td colSpan={7} className="py-16 text-center text-industrial-400">No sales yet</td></tr>
                       ) : ledger.salesHistory.map((row) => (
                         <tr key={`${row.source}-${row.id}`} className="hover:bg-industrial-50/60 transition-colors">
                           <td className="px-5 py-3.5 text-industrial-500 text-xs whitespace-nowrap">{fmtDate(row.date)}</td>
@@ -597,6 +731,17 @@ export default function CustomerLedger() {
                               {row.status}
                             </span>
                           </td>
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center justify-end">
+                              {row.source === 'sale' && (
+                                <AttachmentManager
+                                  entityType="sale"
+                                  entityId={row.id}
+                                  label={`Sale #${row.id}`}
+                                />
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -609,6 +754,7 @@ export default function CustomerLedger() {
                           <td className="px-5 py-3 text-right font-bold">
                             <span className={ledger.balance > 0 ? 'text-red-600' : 'text-green-700'}>{HT(ledger.balance)}</span>
                           </td>
+                          <td />
                           <td />
                         </tr>
                       </tfoot>
@@ -623,9 +769,9 @@ export default function CustomerLedger() {
                       <tr>
                         <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-industrial-500 w-28">Date</th>
                         <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-industrial-500">Description</th>
-                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500 w-32">Sale Amount</th>
-                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500 w-32">Collected</th>
-                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500 w-32">Total Due Balance</th>
+                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500 w-32">DR</th>
+                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500 w-32">CR</th>
+                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500 w-32">Balance</th>
                         <th className="px-5 py-3 w-28"></th>
                       </tr>
                     </thead>
@@ -679,22 +825,56 @@ export default function CustomerLedger() {
                               </span>
                             </td>
                             <td className="px-5 py-3.5">
-                              {isSale && entry.payment_status !== 'paid' && entry.sale_id && (
-                                <button
-                                  onClick={() => {
-                                    setPayModal({
-                                      sale_id: entry.sale_id!,
-                                      customer_id: ledger.customer.id,
-                                      max: entry.debit,
-                                      description: entry.description,
-                                    });
-                                    setPayAmount(String(entry.balance > 0 ? entry.balance : entry.debit));
-                                  }}
-                                  className="flex items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-green-700 transition-colors"
-                                >
-                                  <CreditCard className="h-3 w-3" /> Collect
-                                </button>
-                              )}
+                              <div className="flex items-center justify-end gap-1.5">
+                                {isSale && entry.payment_status !== 'paid' && entry.sale_id && (
+                                  <button
+                                    onClick={() => {
+                                      const saleRow = ledger.salesHistory.find((sale) => sale.source === 'sale' && sale.id === entry.sale_id);
+                                      setPayModal({
+                                        sale_id: entry.sale_id!,
+                                        customer_id: ledger.customer.id,
+                                        customer_name: ledger.customer.name,
+                                        max: saleRow?.pending_amount ?? entry.debit,
+                                        description: entry.description,
+                                      });
+                                      setPayAmount(String(saleRow?.pending_amount ?? entry.debit));
+                                      setPayDiscount('');
+                                      setPayDate(new Date().toISOString().slice(0, 10));
+                                      setPayMethod('cash');
+                                    }}
+                                    className="flex items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-green-700 transition-colors"
+                                  >
+                                    <CreditCard className="h-3 w-3" /> Collect
+                                  </button>
+                                )}
+                              {isSale && entry.sale_id && (
+                                  <AttachmentManager
+                                    entityType="sale"
+                                    entityId={entry.sale_id}
+                                    label={entry.description}
+                                  />
+                                )}
+                                {isSale && entry.manual_credit_id && (
+                                  <button
+                                    onClick={() => {
+                                      setObModal({
+                                        customer_id: ledger.customer.id,
+                                        name: ledger.customer.name,
+                                        manual_credit_id: entry.manual_credit_id,
+                                      });
+                                      setObForm({
+                                        description: entry.description,
+                                        amount: String(entry.debit),
+                                        discount: '',
+                                        date: String(entry.date).slice(0, 10),
+                                      });
+                                    }}
+                                    className="flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+                                  >
+                                    <Pencil className="h-3 w-3" /> Edit
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -726,26 +906,84 @@ export default function CustomerLedger() {
       {/* ── Collect Modal ── */}
       {payModal && (
         <Modal open={!!payModal} title="Record Payment from Customer" onClose={() => setPayModal(null)}>
+          {(() => {
+            const amountNum = Number(payAmount) || 0;
+            const discountNum = Number(payDiscount) || 0;
+            const settlementTotal = amountNum + discountNum;
+            const isOverSettled = settlementTotal > payModal.max;
+
+            return (
           <div className="space-y-4">
             <div className="rounded-lg bg-industrial-50 border border-industrial-200 px-4 py-3">
               <p className="text-sm font-semibold text-industrial-700">{payModal.description}</p>
               <p className="text-xs text-industrial-500 mt-0.5">
                 <Wallet className="inline h-3 w-3 mr-1" />
-                {localizeApiText(ledger?.customer.name ?? '', isUrdu)}
+                {localizeApiText(payModal.customer_name ?? ledger?.customer.name ?? '', isUrdu)}
               </p>
+              <p className="mt-1 text-xs font-semibold text-green-700">Credit due: {HT(payModal.max)}</p>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-industrial-700">Amount Collected (Rs)</label>
               <Input
                 type="number"
                 autoFocus
+                min="1"
+                max={payModal.max}
                 value={payAmount}
                 onChange={(e) => setPayAmount(e.target.value)}
                 className="text-lg font-bold"
               />
             </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-industrial-700">Discount (Rs)</label>
+              <Input
+                type="number"
+                min="0"
+                max={payModal.max}
+                placeholder="0"
+                value={payDiscount}
+                onChange={(e) => setPayDiscount(e.target.value)}
+                className="text-lg font-bold"
+              />
+              {discountNum > 0 && (
+                <p className="mt-1 text-xs font-semibold text-red-500">- {fmtCurrency(discountNum)} discount</p>
+              )}
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-industrial-700">Total Credit Reduced</label>
+              <div className="h-10 w-full rounded-lg border-2 border-industrial-200 bg-industrial-50 px-3 text-lg font-bold flex items-center justify-between">
+                <span>{fmtCurrency(settlementTotal)}</span>
+                <span className="text-xs font-semibold text-industrial-500">
+                  Remaining {fmtCurrency(Math.max(0, payModal.max - settlementTotal))}
+                </span>
+              </div>
+              {isOverSettled && (
+                <p className="mt-1 text-xs font-semibold text-red-600">Payment plus discount cannot be more than the credit due.</p>
+              )}
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-industrial-700">Payment Date</label>
+              <Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+            </div>
+            {payModal.general && (
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-industrial-700">Payment Method</label>
+                <select
+                  className="h-10 w-full rounded-lg border-2 border-industrial-200 bg-white px-3 text-sm font-semibold outline-none focus:border-green-500"
+                  value={payMethod}
+                  onChange={(e) => setPayMethod(e.target.value)}
+                >
+                  <option value="cash">Cash</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="jazzcash">JazzCash</option>
+                  <option value="easypaisa">Easypaisa</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            )}
             <div className="flex gap-3 pt-2">
-              <Button onClick={submitPayment} disabled={paying || !payAmount} className="flex-1">
+              <Button onClick={submitPayment} disabled={paying || settlementTotal <= 0 || isOverSettled} className="flex-1">
                 {paying ? 'Saving…' : 'Confirm Collection'}
               </Button>
               <Button onClick={() => setPayModal(null)} variant="outline" className="flex-1">
@@ -753,12 +991,14 @@ export default function CustomerLedger() {
               </Button>
             </div>
           </div>
+            );
+          })()}
         </Modal>
       )}
 
       {/* ── Opening Balance Modal ── */}
       {obModal && (
-        <Modal open={!!obModal} title={`Opening Balance — ${obModal.name}`} onClose={() => setObModal(null)}>
+        <Modal open={!!obModal} title={`${obModal.manual_credit_id ? 'Edit Entry' : 'Opening Balance'} — ${obModal.name}`} onClose={() => setObModal(null)}>
           <div className="space-y-4">
             <p className="text-sm text-industrial-500">Record an existing amount this customer already owes from before the system was set up.</p>
             <div>
@@ -807,13 +1047,42 @@ export default function CustomerLedger() {
             </div>
             <div className="flex gap-3 pt-2">
               <Button onClick={submitOpeningBalance} disabled={obSaving || !obForm.description || !obForm.amount} className="flex-1 bg-amber-500 hover:bg-amber-600">
-                {obSaving ? 'Saving…' : 'Add Opening Balance'}
+                {obSaving ? 'Saving…' : obModal.manual_credit_id ? 'Save Entry' : 'Add Opening Balance'}
               </Button>
               <Button onClick={() => setObModal(null)} variant="outline" className="flex-1">Cancel</Button>
             </div>
           </div>
         </Modal>
       )}
+      {advanceModalOpen && (
+        <RecordAdvanceModal
+          products={advanceProducts}
+          cementBrands={advanceCementBrands}
+          customers={advanceCustomers}
+          initialCustomerId={advanceCustomerId}
+          onClose={() => {
+            setAdvanceModalOpen(false);
+            setAdvanceCustomerId(undefined);
+          }}
+          onCreated={async () => {
+            setAdvanceModalOpen(false);
+            setAdvanceCustomerId(undefined);
+            await loadSummary();
+            if (selectedId) await loadLedger(selectedId);
+          }}
+        />
+      )}
+      <CustomerFormModal
+        open={customerModalOpen}
+        onClose={() => { setCustomerModalOpen(false); setEditingCustomer(null); }}
+        onSuccess={async () => {
+          setCustomerModalOpen(false);
+          setEditingCustomer(null);
+          await loadSummary();
+          if (selectedId) await loadLedger(selectedId);
+        }}
+        editCustomer={editingCustomer}
+      />
     </div>
   );
 }

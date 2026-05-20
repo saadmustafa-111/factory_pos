@@ -12,6 +12,10 @@ export class CreatePaymentDto {
   amount_paid: number;
 
   @IsOptional()
+  @IsNumber()
+  discount_amount?: number;
+
+  @IsOptional()
   @IsDateString()
   payment_date?: string;
 

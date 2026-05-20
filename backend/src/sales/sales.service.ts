@@ -112,6 +112,85 @@ export class SalesService {
     return this.findOne(savedSale.id);
   }
 
+  async update(id: number, payload: CreateSaleDto) {
+    const sale = await this.salesRepo.findOne({
+      where: { id },
+      relations: ['items'],
+    });
+    if (!sale) {
+      throw new NotFoundException('Sale not found');
+    }
+
+    let customer = payload.customer_id
+      ? await this.customersRepo.findOne({ where: { id: payload.customer_id } })
+      : null;
+
+    if (!customer && payload.customer_name) {
+      customer = await this.customersRepo.save(
+        this.customersRepo.create({
+          name: payload.customer_name,
+          phone: payload.customer_phone,
+          address: payload.customer_address,
+        }),
+      );
+    }
+
+    const items = await Promise.all(
+      payload.items.map(async (item) => ({
+        ...item,
+        purchase_price_per_unit: await this.avgPurchasePrice(
+          item.product_id,
+          item.cement_brand_id,
+        ),
+        total_price: item.quantity * item.sale_price_per_unit,
+      })),
+    );
+
+    const loadingCharges = Number(payload.loading_charges || 0);
+    const discount = Number(payload.discount || 0);
+    const totalAmount = items.reduce((sum, item) => sum + item.total_price, 0) + loadingCharges - discount;
+    const paidAmount = Math.max(0, payload.paid_amount || 0);
+    const pendingAmount = Math.max(0, totalAmount - paidAmount);
+
+    const status =
+      pendingAmount === 0
+        ? SaleStatus.PAID
+        : paidAmount > 0
+          ? SaleStatus.PARTIAL
+          : SaleStatus.PENDING;
+
+    const dueDate = payload.due_date
+      ? new Date(payload.due_date)
+      : payload.credit_days
+        ? new Date(new Date(payload.date).getTime() + payload.credit_days * 86400000)
+        : undefined;
+
+    if (sale.items?.length) {
+      await this.saleItemsRepo.remove(sale.items);
+    }
+
+    Object.assign(sale, {
+      customer_id: customer?.id,
+      customer_name: customer?.name ?? payload.customer_name,
+      customer_phone: customer?.phone ?? payload.customer_phone,
+      date: new Date(payload.date),
+      due_date: dueDate,
+      credit_days: payload.credit_days,
+      total_amount: totalAmount,
+      loading_charges: loadingCharges,
+      discount,
+      paid_amount: paidAmount,
+      pending_amount: pendingAmount,
+      status,
+      is_overdue: false,
+      notes: payload.notes,
+      items: items.map((item) => this.saleItemsRepo.create(item)),
+    });
+
+    const savedSale = await this.salesRepo.save(sale);
+    return this.findOne(savedSale.id);
+  }
+
   async findAll(status?: string) {
     if (status === 'overdue') {
       return this.salesRepo.find({

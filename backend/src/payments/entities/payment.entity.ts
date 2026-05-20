@@ -34,6 +34,9 @@ export class Payment {
   @Column('float')
   amount_paid: number;
 
+  @Column({ type: 'float', default: 0 })
+  discount_amount: number;
+
   @Column({ type: 'datetime' })
   payment_date: Date;
 

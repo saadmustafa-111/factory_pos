@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Package, Plus, X, CheckCircle } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Package, Plus, Search, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { fmtCurrency } from '../lib/utils';
@@ -35,7 +36,7 @@ interface AdvancePayment {
   converted_sale_id?: number;
 }
 
-interface Product {
+export interface Product {
   id: number;
   name: string;
   unit: string;
@@ -43,12 +44,12 @@ interface Product {
   is_active: boolean;
 }
 
-interface CementBrand {
+export interface CementBrand {
   id: number;
   brand_name: string;
 }
 
-interface Customer {
+export interface Customer {
   id: number;
   name: string;
   phone?: string;
@@ -57,9 +58,11 @@ interface Customer {
 
 export default function AdvancePayments() {
   const { t, isUrdu } = useLang();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [advances, setAdvances] = useState<AdvancePayment[]>([]);
   const [filteredAdvances, setFilteredAdvances] = useState<AdvancePayment[]>([]);
   const [statusFilter, setStatusFilter] = useState('pending');
+  const [searchQuery, setSearchQuery] = useState('');
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [showPickupModal, setShowPickupModal] = useState(false);
   const [selectedAdvance, setSelectedAdvance] = useState<AdvancePayment | null>(null);
@@ -75,7 +78,13 @@ export default function AdvancePayments() {
 
   useEffect(() => {
     applyFilter();
-  }, [statusFilter, advances]);
+  }, [statusFilter, searchQuery, advances]);
+
+  useEffect(() => {
+    if (searchParams.get('open') === '1') {
+      setShowRecordModal(true);
+    }
+  }, [searchParams]);
 
   const loadAdvances = async () => {
     try {
@@ -102,7 +111,7 @@ export default function AdvancePayments() {
   const loadCustomers = async () => {
     try {
       const res = await api.get('/customers');
-      setCustomers(res.data);
+      setCustomers(res.data?.data ?? res.data ?? []);
     } catch (err) {
       console.error('Failed to load customers:', err);
     }
@@ -112,6 +121,25 @@ export default function AdvancePayments() {
     let filtered = advances;
     if (statusFilter !== 'all') {
       filtered = advances.filter((a) => a.status === statusFilter);
+    }
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      filtered = filtered.filter((a) => {
+        const itemText = a.items.map((item) => (
+          `${item.product.name} ${item.cement_brand?.brand_name ?? ''} ${item.quantity} ${item.unit}`
+        )).join(' ');
+        return [
+          a.customer_name,
+          a.customer_phone,
+          a.customer_address,
+          a.payment_method,
+          a.status,
+          a.converted_sale_id ? `sale ${a.converted_sale_id}` : '',
+          String(a.id),
+          String(a.paid_amount),
+          itemText,
+        ].some((value) => String(value ?? '').toLowerCase().includes(q));
+      });
     }
     setFilteredAdvances(filtered);
   };
@@ -183,20 +211,31 @@ export default function AdvancePayments() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-2 shrink-0">
-        {statusButtons.map((btn) => (
-          <button
-            key={btn.key}
-            onClick={() => setStatusFilter(btn.key)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              statusFilter === btn.key
-                ? 'bg-industrial-700 text-white'
-                : 'bg-industrial-100 text-industrial-700 hover:bg-industrial-200'
-            }`}
-          >
-            {btn.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="relative min-w-64 flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-industrial-400" />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={isUrdu ? 'تلاش...' : 'Search customer, phone, item, sale...'}
+            className="h-10 w-full rounded-xl border-2 border-industrial-200 bg-white pl-9 pr-3 text-sm font-medium outline-none focus:border-accent-primary"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {statusButtons.map((btn) => (
+            <button
+              key={btn.key}
+              onClick={() => setStatusFilter(btn.key)}
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                statusFilter === btn.key
+                  ? 'bg-industrial-700 text-white'
+                  : 'bg-industrial-100 text-industrial-700 hover:bg-industrial-200'
+              }`}
+            >
+              {btn.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Advance Payments Table */}
@@ -283,9 +322,14 @@ export default function AdvancePayments() {
           products={products}
           cementBrands={cementBrands}
           customers={customers}
-          onClose={() => setShowRecordModal(false)}
+          initialCustomerId={Number(searchParams.get('customer')) || undefined}
+          onClose={() => {
+            setShowRecordModal(false);
+            setSearchParams({});
+          }}
           onCreated={() => {
             setShowRecordModal(false);
+            setSearchParams({});
             loadAdvances();
           }}
         />
@@ -311,16 +355,18 @@ export default function AdvancePayments() {
 }
 
 // Record Advance Payment Modal Component
-function RecordAdvanceModal({
+export function RecordAdvanceModal({
   products,
   cementBrands,
   customers,
+  initialCustomerId,
   onClose,
   onCreated,
 }: {
   products: Product[];
   cementBrands: CementBrand[];
   customers: Customer[];
+  initialCustomerId?: number;
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -351,6 +397,12 @@ function RecordAdvanceModal({
       setCustomerAddress(customer.address || '');
     }
   };
+
+  useEffect(() => {
+    if (initialCustomerId && customers.some((c) => c.id === initialCustomerId)) {
+      handleSelectCustomer(initialCustomerId);
+    }
+  }, [initialCustomerId, customers]);
 
   const handleAddItem = () => {
     setItems([...items, { product_id: 0, quantity: 0, unit: '', rate_per_unit: 0 }]);

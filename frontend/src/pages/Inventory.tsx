@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowDownCircle, BadgeCheck, Calendar, ChevronRight, Clock, DollarSign, Info, MapPin, Package, Plus, Search, Trash2, Truck, X } from 'lucide-react';
+import { AlertCircle, ArrowDownCircle, BadgeCheck, Calendar, ChevronRight, Clock, Info, MapPin, Package, Pencil, Plus, Search, Trash2, Truck, X } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
@@ -20,6 +20,16 @@ function toNumber(value: string) {
 
 function matchesSearch(value: string, query: string) {
   return value.toLowerCase().includes(query.trim().toLowerCase());
+}
+
+function stockKey(row: any) {
+  const productId = Number(row.product_id || row.product?.id || 0);
+  const brandId = Number(row.cement_brand_id || row.cement_brand?.id || 0);
+  return `${productId}-${brandId}`;
+}
+
+function productKey(row: any) {
+  return String(Number(row.product_id || row.product?.id || 0));
 }
 
 function PaginationBar({
@@ -102,6 +112,7 @@ export default function Inventory() {
   const [itemToDelete, setItemToDelete] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addStockOpen, setAddStockOpen] = useState(false);
+  const [editingInventoryId, setEditingInventoryId] = useState<number | null>(null);
   const [entryType, setEntryType] = useState<'purchase' | 'opening'>('purchase');
   const [stockQuery, setStockQuery] = useState('');
   const [historyQuery, setHistoryQuery] = useState('');
@@ -150,8 +161,65 @@ export default function Inventory() {
 
   const paymentStatus = pendingToMill === 0 ? 'paid' : netPaidToMill > 0 ? 'partial' : 'pending';
 
+  const stockDisplayRows = useMemo(() => {
+    const historyGroups = new Map<string, any>();
+
+    history.forEach((entry) => {
+      const brandId = Number(entry.cement_brand_id || entry.cement_brand?.id || 0);
+      if (entry.product?.category !== 'cement' || brandId <= 0) return;
+
+      const key = stockKey(entry);
+      const quantity = Number(entry.quantity_received || 0);
+      const price = Number(entry.purchase_price_per_unit || 0);
+      const value = Number(entry.total_cost || quantity * price);
+      const current = historyGroups.get(key);
+
+      if (current) {
+        current.stock += quantity;
+        current.total_value += value;
+        current.unit_price = current.stock > 0 ? current.total_value / current.stock : 0;
+        return;
+      }
+
+      historyGroups.set(key, {
+        product_id: Number(entry.product_id || entry.product?.id || 0),
+        cement_brand_id: brandId,
+        product: entry.product,
+        cement_brand: entry.cement_brand,
+        stock: quantity,
+        unit_price: price,
+        total_value: value,
+        last_updated: entry.created_at || entry.date,
+      });
+    });
+
+    return stock.flatMap((row) => {
+      const isGenericCement = row.product?.category === 'cement' && !Number(row.cement_brand_id || row.cement_brand?.id || 0);
+      if (!isGenericCement) return [row];
+
+      const brandRows = Array.from(historyGroups.values()).filter(
+        (entry) => Number(entry.product_id || entry.product?.id || 0) === Number(row.product_id || row.product?.id || 0),
+      );
+      if (brandRows.length === 0) return [row];
+
+      const totalBrandStock = brandRows.reduce((sum, entry) => sum + Number(entry.stock || 0), 0);
+      const currentStock = Number(row.stock || 0);
+      const stockRatio = totalBrandStock > 0 && currentStock < totalBrandStock ? currentStock / totalBrandStock : 1;
+
+      return brandRows.map((entry) => {
+        const adjustedStock = Number(entry.stock || 0) * stockRatio;
+        return {
+          ...entry,
+          stock: adjustedStock,
+          total_value: adjustedStock * Number(entry.unit_price || 0),
+          last_updated: row.last_updated || entry.last_updated,
+        };
+      });
+    });
+  }, [stock, history]);
+
   const filteredStock = useMemo(() => {
-    let filtered = stock;
+    let filtered = stockDisplayRows;
     if (stockCategory === 'cement') {
       filtered = filtered.filter((row) => row.product?.category === 'cement');
     } else if (stockCategory === 'steel') {
@@ -167,7 +235,76 @@ export default function Inventory() {
       const typeBrand = String(localizeApiText(row.cement_brand?.brand_name || row.product?.type, isUrdu) || '');
       return matchesSearch(`${name} ${typeBrand}`, stockQuery);
     });
-  }, [stock, stockQuery, isUrdu, stockCategory]);
+  }, [stockDisplayRows, stockQuery, isUrdu, stockCategory]);
+
+  const historyPriceByStockKey = useMemo(() => {
+    const prices = new Map<string, number>();
+    const totalsByStockKey = new Map<string, { quantity: number; value: number }>();
+    const totalsByProductKey = new Map<string, { quantity: number; value: number }>();
+
+    history.forEach((row) => {
+      const key = stockKey(row);
+      const productOnlyKey = productKey(row);
+      const quantity = Number(row.quantity_received || 0);
+      const price = Number(row.purchase_price_per_unit || 0);
+      const value = Number(row.total_cost || quantity * price);
+
+      if (quantity > 0 && value > 0) {
+        const stockTotal = totalsByStockKey.get(key) || { quantity: 0, value: 0 };
+        totalsByStockKey.set(key, {
+          quantity: stockTotal.quantity + quantity,
+          value: stockTotal.value + value,
+        });
+
+        const productTotal = totalsByProductKey.get(productOnlyKey) || { quantity: 0, value: 0 };
+        totalsByProductKey.set(productOnlyKey, {
+          quantity: productTotal.quantity + quantity,
+          value: productTotal.value + value,
+        });
+      }
+    });
+
+    totalsByStockKey.forEach((total, key) => {
+      if (total.quantity > 0) {
+        prices.set(key, total.value / total.quantity);
+      }
+    });
+
+    totalsByProductKey.forEach((total, key) => {
+      if (total.quantity > 0) {
+        prices.set(`product:${key}`, total.value / total.quantity);
+      }
+    });
+
+    return prices;
+  }, [history]);
+
+  const getStockUnitPrice = (row: any) => {
+    const apiPrice = Number(row.unit_price || 0);
+    if (apiPrice > 0) return apiPrice;
+
+    const historyPrice = historyPriceByStockKey.get(stockKey(row)) || 0;
+    if (historyPrice > 0) return historyPrice;
+
+    const productHistoryPrice = historyPriceByStockKey.get(`product:${productKey(row)}`) || 0;
+    if (productHistoryPrice > 0) return productHistoryPrice;
+
+    const quantity = Number(row.stock || 0);
+    const value = Number(row.total_value || 0);
+    return quantity > 0 ? value / quantity : 0;
+  };
+
+  const getStockValue = (row: any) => Number(row.stock || 0) * getStockUnitPrice(row);
+
+  const totalStockValue = useMemo(
+    () => stockDisplayRows.reduce((sum, row) => sum + getStockValue(row), 0),
+    [stockDisplayRows, historyPriceByStockKey],
+  );
+
+  const filteredStockValue = useMemo(
+    () => filteredStock.reduce((sum, row) => sum + getStockValue(row), 0),
+    [filteredStock, historyPriceByStockKey],
+  );
 
   const filteredHistory = useMemo(() => {
     let filtered = history;
@@ -246,11 +383,60 @@ export default function Inventory() {
     }
   }, [historyPage, historyTotalPages]);
 
+  const resetForm = () => {
+    setEditingInventoryId(null);
+    setEntryType('purchase');
+    setForm({
+      supplier_id: 0,
+      product_id: 0,
+      cement_brand_id: 0,
+      date: new Date().toISOString().slice(0, 10),
+      pickup_date: new Date().toISOString().slice(0, 10),
+      delivery_date: '',
+      delivery_location: '',
+      transport_details: '',
+      quantity_received: 0,
+      purchase_price_per_unit: 0,
+      amount_paid_to_mill: 0,
+      amount_received_from_mill: 0,
+      credit_days: 0,
+      notes: '',
+    });
+  };
+
+  const openAddStock = () => {
+    resetForm();
+    setAddStockOpen(true);
+  };
+
+  const openEditStock = (row: any) => {
+    const nextEntryType = row.entry_type === 'opening' ? 'opening' : 'purchase';
+    setEditingInventoryId(row.id);
+    setEntryType(nextEntryType);
+    setForm({
+      supplier_id: Number(row.supplier_id || row.supplier?.id || 0),
+      product_id: Number(row.product_id || row.product?.id || 0),
+      cement_brand_id: Number(row.cement_brand_id || row.cement_brand?.id || 0),
+      date: String(row.date).slice(0, 10),
+      pickup_date: row.pickup_date ? String(row.pickup_date).slice(0, 10) : '',
+      delivery_date: row.delivery_date ? String(row.delivery_date).slice(0, 10) : '',
+      delivery_location: row.delivery_location || '',
+      transport_details: row.transport_details || '',
+      quantity_received: Number(row.quantity_received || 0),
+      purchase_price_per_unit: Number(row.purchase_price_per_unit || 0),
+      amount_paid_to_mill: Number(row.amount_paid_to_mill || 0),
+      amount_received_from_mill: Number(row.amount_received_from_mill || 0),
+      credit_days: Number(row.credit_days || 0),
+      notes: row.notes || '',
+    });
+    setAddStockOpen(true);
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await api.post('/inventory', {
+      const payload = {
         entry_type: entryType,
         supplier_id: entryType === 'purchase' ? Number(form.supplier_id) : undefined,
         product_id: Number(form.product_id),
@@ -266,19 +452,13 @@ export default function Inventory() {
         transport_details: entryType === 'purchase' && form.transport_details ? form.transport_details : undefined,
         credit_days: entryType === 'purchase' && form.credit_days ? Number(form.credit_days) : undefined,
         notes: form.notes,
-      });
-      setForm((prev) => ({
-        ...prev,
-        delivery_date: '',
-        delivery_location: '',
-        transport_details: '',
-        quantity_received: 0,
-        purchase_price_per_unit: 0,
-        amount_paid_to_mill: 0,
-        amount_received_from_mill: 0,
-        credit_days: 0,
-        notes: '',
-      }));
+      };
+      if (editingInventoryId) {
+        await api.put(`/inventory/${editingInventoryId}`, payload);
+      } else {
+        await api.post('/inventory', payload);
+      }
+      resetForm();
       setAddStockOpen(false);
       await load();
     } finally {
@@ -319,7 +499,12 @@ export default function Inventory() {
           <div className="flex items-center gap-2 rounded-xl border-2 border-industrial-200 bg-white px-4 py-2.5">
             <Package className="h-4 w-4 text-accent-primary" />
             <span className="text-xs font-semibold text-industrial-500 uppercase tracking-wide">{isUrdu ? 'اسٹاک' : 'Stock'}</span>
-            <span className="text-lg font-bold text-industrial-900">{stock.length}</span>
+            <span className="text-lg font-bold text-industrial-900">{stockDisplayRows.length}</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-xl border-2 border-industrial-200 bg-white px-4 py-2.5">
+            <span className="text-xs font-black text-green-700">PKR</span>
+            <span className="text-xs font-semibold text-industrial-500 uppercase tracking-wide">{isUrdu ? 'مالیت' : 'Stock Value'}</span>
+            <span className="text-lg font-bold text-industrial-900 tabular-nums">{fmtCurrency(totalStockValue)}</span>
           </div>
           <div className="flex items-center gap-2 rounded-xl border-2 border-industrial-200 bg-white px-4 py-2.5">
             <Calendar className="h-4 w-4 text-accent-secondary" />
@@ -329,7 +514,7 @@ export default function Inventory() {
           <Button
             size="lg"
             className="gap-2 px-6 shadow-sm"
-            onClick={() => { setEntryType('purchase'); setAddStockOpen(true); }}
+            onClick={openAddStock}
           >
             <Plus className="h-5 w-5" />
             {isUrdu ? 'اسٹاک شامل کریں' : 'Add Stock'}
@@ -349,12 +534,12 @@ export default function Inventory() {
                   <ArrowDownCircle className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-white">{t.addStock}</h2>
-                  <p className="text-xs text-industrial-300 mt-0.5">{isUrdu ? 'نئی اسٹاک انٹری شامل کریں' : 'Record a new incoming stock entry'}</p>
+                  <h2 className="text-lg font-bold text-white">{editingInventoryId ? 'Edit Stock Entry' : t.addStock}</h2>
+                  <p className="text-xs text-industrial-300 mt-0.5">{editingInventoryId ? 'Update incoming stock entry' : isUrdu ? 'نئی اسٹاک انٹری شامل کریں' : 'Record a new incoming stock entry'}</p>
                 </div>
               </div>
               <button
-                onClick={() => setAddStockOpen(false)}
+                onClick={() => { setAddStockOpen(false); resetForm(); }}
                 className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
               >
                 <X className="h-5 w-5" />
@@ -530,7 +715,7 @@ export default function Inventory() {
                   <div className="p-6">
                     <div className="flex items-center gap-2.5 mb-5">
                       <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-green-50 ring-1 ring-green-200">
-                        <DollarSign className="h-3.5 w-3.5 text-green-600" />
+                        <span className="text-[10px] font-black text-green-700">PKR</span>
                       </div>
                       <h3 className="text-sm font-bold text-industrial-800 uppercase tracking-wide">
                         {entryType === 'opening' ? (isUrdu ? 'مقدار' : 'Quantity') : (isUrdu ? 'مقدار اور ادائیگی' : 'Quantity & Payment')}
@@ -591,14 +776,14 @@ export default function Inventory() {
 
                   {/* Footer actions */}
                   <div className="flex justify-end gap-3 px-6 py-4 bg-industrial-50">
-                    <Button type="button" variant="outline" onClick={() => setAddStockOpen(false)} className="px-6">
+                    <Button type="button" variant="outline" onClick={() => { setAddStockOpen(false); resetForm(); }} className="px-6">
                       {isUrdu ? 'منسوخ' : 'Cancel'}
                     </Button>
                     <Button type="submit" size="lg" className="px-8 gap-2 shadow-md" disabled={isSubmitting}>
                       {isSubmitting ? (
                         <>{isUrdu ? 'محفوظ ہو رہا ہے...' : 'Saving...'}</>
                       ) : (
-                        <><Plus className="h-4 w-4" />{t.addStock}</>
+                        <><Plus className="h-4 w-4" />{editingInventoryId ? 'Save Changes' : t.addStock}</>
                       )}
                     </Button>
                   </div>
@@ -685,7 +870,7 @@ export default function Inventory() {
       <div className="flex gap-4 flex-1 min-h-0">
 
         {/* ── Left: Current Stock ── */}
-        <div className="w-80 xl:w-96 shrink-0 flex flex-col rounded-xl border-2 border-industrial-200 bg-white overflow-hidden">
+        <div className="w-[540px] xl:w-[620px] shrink-0 flex flex-col rounded-xl border-2 border-industrial-200 bg-white overflow-hidden">
           <div className="flex items-center border-b border-industrial-200 bg-industrial-50 px-2 py-2 shrink-0 overflow-x-auto scrollbar-none gap-2" style={{ WebkitOverflowScrolling: 'touch' }}>
             <div className="flex items-center gap-2 flex-shrink-0">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-secondary/15">
@@ -718,44 +903,65 @@ export default function Inventory() {
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-industrial-400" />
               <Input value={stockQuery} onChange={(e) => setStockQuery(e.target.value)} placeholder={isUrdu ? 'تلاش...' : 'Search...'} className="pl-8 h-8 text-xs" />
             </div>
+            <div className="ml-auto flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5">
+              <span className="text-[11px] font-black text-green-800">PKR</span>
+              <span className="text-[11px] font-bold uppercase tracking-wide text-green-700">{isUrdu ? 'مالیت' : 'Value'}</span>
+              <span className="text-xs font-black text-green-900 tabular-nums">{fmtCurrency(filteredStockValue)}</span>
+            </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-auto">
             {paginatedStock.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-8 text-center">
                 <Package className="mb-2 h-10 w-10 text-industrial-300" />
                 <p className="text-sm font-semibold text-industrial-500">{isUrdu ? 'کوئی اسٹاک نہیں' : 'No stock found'}</p>
               </div>
             ) : (
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[600px] text-sm">
                 <thead className="sticky top-0 bg-industrial-800 text-white z-10">
                   <tr>
-                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">{t.product}</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">{t.typeBrand}</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-bold uppercase tracking-wider">{t.stock}</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">{t.unit}</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider w-44">{t.product}</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider w-24">{t.typeBrand}</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider w-20">{t.stock}</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider w-16">{t.unit}</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider w-28">{isUrdu ? 'فی یونٹ' : 'Unit Price'}</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider w-32">{isUrdu ? 'کل مالیت' : 'Total Value'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-industrial-100">
-                  {paginatedStock.map((row, index) => (
-                    <tr key={row.product_id} className={`transition-colors hover:bg-accent-primary/5 ${index % 2 !== 0 ? 'bg-industrial-50/40' : 'bg-white'}`}>
-                      <td className="px-3 py-3">
+                  {paginatedStock.map((row, index) => {
+                    const unitPrice = getStockUnitPrice(row);
+                    const stockQty = Number(row.stock || 0);
+                    const exactStockValue = unitPrice * stockQty;
+                    return (
+                    <tr key={`${row.product_id}-${row.cement_brand_id ?? 0}`} className={`transition-colors hover:bg-accent-primary/5 ${index % 2 !== 0 ? 'bg-industrial-50/40' : 'bg-white'}`}>
+                      <td className="px-3 py-3 align-top">
                         <div className="flex items-center gap-2">
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent-primary/10">
                             <Package className="h-3.5 w-3.5 text-accent-primary" />
                           </div>
-                          <span className="font-semibold text-industrial-900 text-xs">{localizeApiText(row.product?.name, isUrdu)}</span>
+                          <span className="font-semibold text-industrial-900 text-xs leading-tight">{localizeApiText(row.product?.name, isUrdu)}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-industrial-500 text-xs">{localizeApiText(row.cement_brand?.brand_name || row.product?.type, isUrdu)}</td>
-                      <td className="px-3 py-3 text-center">
+                      <td className="px-3 py-3 align-top text-industrial-500 text-xs">{localizeApiText(row.cement_brand?.brand_name || row.product?.type, isUrdu)}</td>
+                      <td className="px-3 py-3 align-top text-right">
                         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-bold ${
                           row.stock < 0 ? 'bg-red-100 text-red-700' : 'bg-accent-primary/10 text-accent-primary'
                         }`}>{row.stock}</span>
                       </td>
-                      <td className="px-3 py-3 text-industrial-500 text-xs">{localizeApiUnit(row.product?.unit, isUrdu)}</td>
+                      <td className="px-3 py-3 align-top text-industrial-500 text-xs">{localizeApiUnit(row.product?.unit, isUrdu)}</td>
+                      <td className="px-3 py-3 align-top text-right font-semibold text-blue-700 text-xs whitespace-nowrap">
+                        {fmtCurrency(unitPrice)}
+                      </td>
+                      <td className="px-3 py-3 align-top text-right whitespace-nowrap">
+                        <div className="font-bold text-industrial-900 text-xs">{fmtCurrency(exactStockValue)}</div>
+                        <div className="mt-0.5 text-[10px] text-industrial-400">
+                          {stockQty.toLocaleString()} × {fmtCurrency(unitPrice)}
+                        </div>
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -874,10 +1080,17 @@ export default function Inventory() {
                         ) : <span className="text-industrial-300">—</span>}
                       </td>
                       <td className="px-3 py-2.5">
-                        <button type="button" onClick={() => deleteInventory(row.id)}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
-                          <Trash2 size={14} />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button type="button" onClick={() => openEditStock(row)}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg text-blue-500 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                            title="Edit Stock Entry">
+                            <Pencil size={14} />
+                          </button>
+                          <button type="button" onClick={() => deleteInventory(row.id)}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

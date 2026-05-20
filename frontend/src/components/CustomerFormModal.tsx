@@ -12,8 +12,9 @@ interface CustomerFormModalProps {
   editCustomer?: {
     id: number;
     name: string;
-    phone: string;
-    address: string;
+    phone?: string;
+    address?: string;
+    notes?: string;
     has_vehicle?: boolean;
     vehicle_number?: string;
     cnic?: string;
@@ -32,6 +33,7 @@ export function CustomerFormModal({ open, onClose, onSuccess, editCustomer }: Cu
     name: editCustomer?.name || '',
     phone: editCustomer?.phone || '',
     address: editCustomer?.address || '',
+    notes: editCustomer?.notes || '',
     has_vehicle: editCustomer?.has_vehicle || false,
     vehicle_number: editCustomer?.vehicle_number || '',
     cnic: editCustomer?.cnic || '',
@@ -47,6 +49,7 @@ export function CustomerFormModal({ open, onClose, onSuccess, editCustomer }: Cu
       name: editCustomer?.name || '',
       phone: editCustomer?.phone || '',
       address: editCustomer?.address || '',
+      notes: editCustomer?.notes || '',
       has_vehicle: editCustomer?.has_vehicle || false,
       vehicle_number: editCustomer?.vehicle_number || '',
       cnic: editCustomer?.cnic || '',
@@ -90,6 +93,7 @@ export function CustomerFormModal({ open, onClose, onSuccess, editCustomer }: Cu
         name: '',
         phone: '',
         address: '',
+        notes: '',
         has_vehicle: false,
         vehicle_number: '',
         cnic: '',
@@ -111,13 +115,15 @@ export function CustomerFormModal({ open, onClose, onSuccess, editCustomer }: Cu
       name: '',
       phone: '',
       address: '',
+      notes: '',
       has_vehicle: false,
       vehicle_number: '',
       cnic: '',
       relation_with_me: '',
       gmail: '',
       facebook_link: '',
-      social_link: '',        is_dealer: false,    });
+      social_link: '',
+    });
     setImagePreview(null);
     onClose();
   };
@@ -175,6 +181,18 @@ export function CustomerFormModal({ open, onClose, onSuccess, editCustomer }: Cu
               placeholder="Enter address" 
               value={form.address} 
               onChange={(e) => setForm({ ...form, address: e.target.value })} 
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="mb-2 block text-sm font-semibold text-industrial-700">
+              Profile Bio / Notes
+            </label>
+            <textarea
+              placeholder="Customer bio, profile details, preferences, or notes"
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              className="min-h-20 w-full rounded-lg border-2 border-industrial-200 px-3 py-2 text-sm outline-none focus:border-accent-primary"
             />
           </div>
         </div>

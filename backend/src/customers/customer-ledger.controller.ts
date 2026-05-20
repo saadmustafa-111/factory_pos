@@ -73,6 +73,7 @@ export class CustomerLedgerController {
     @Body()
     body: {
       amount: number;
+      discount_amount?: number;
       payment_date: string;
       payment_method: string;
       installment_due_id?: number;
@@ -110,5 +111,20 @@ export class CustomerLedgerController {
     },
   ) {
     return this.ledgerService.addManualCredit(id, body);
+  }
+
+  @Put(':id/manual-credit/:creditId')
+  updateManualCredit(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('creditId', ParseIntPipe) creditId: number,
+    @Body()
+    body: {
+      item_description: string;
+      amount: number;
+      credit_date: string;
+      notes?: string;
+    },
+  ) {
+    return this.ledgerService.updateManualCredit(id, creditId, body);
   }
 }

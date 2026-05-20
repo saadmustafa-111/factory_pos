@@ -135,6 +135,8 @@ export class MillPaymentsService {
       balance: number;
       inventory_id?: number;
       payment_status?: string;
+      editable_type?: 'opening' | 'manual_payment' | 'mill_payment' | 'stock_in_payment';
+      editable_id?: number;
     };
 
     const entries: Omit<Entry, 'balance'>[] = [
@@ -147,6 +149,8 @@ export class MillPaymentsService {
         rate: undefined,
         debit: ob.amount,
         credit: 0,
+        editable_type: 'opening' as const,
+        editable_id: ob.id,
       })),
       ...inventoryRows.map((inv) => ({
         id: `inv-${inv.id}`,
@@ -170,6 +174,8 @@ export class MillPaymentsService {
         debit: 0,
         credit: p.amount_paid,
         inventory_id: p.inventory_id,
+        editable_type: 'mill_payment' as const,
+        editable_id: p.id,
       })),
       // Implicit payments: amount paid at stock-in time not covered by explicit payment records
       ...inventoryRows
@@ -190,6 +196,8 @@ export class MillPaymentsService {
                 debit: 0,
                 credit: implicit,
                 inventory_id: inv.id,
+                editable_type: 'stock_in_payment' as const,
+                editable_id: inv.id,
               }
             : null;
         })
@@ -204,6 +212,8 @@ export class MillPaymentsService {
         debit: 0,
         credit: mp.amount,
         inventory_id: undefined,
+        editable_type: 'manual_payment' as const,
+        editable_id: mp.id,
       })),
     ];
 
@@ -286,11 +296,92 @@ export class MillPaymentsService {
     return this.openingBalancesRepo.save(record);
   }
 
+  async updateMillPayment(
+    id: number,
+    body: { amount_paid: number; payment_date: string; notes?: string },
+  ) {
+    const payment = await this.millPaymentsRepo.findOne({ where: { id } });
+    if (!payment) throw new NotFoundException('Mill payment not found');
+
+    const inventory = await this.inventoryRepo.findOne({
+      where: { id: payment.inventory_id },
+    });
+    if (!inventory) throw new NotFoundException('Inventory record not found');
+
+    const oldAmount = Number(payment.amount_paid || 0);
+    const newAmount = Number(body.amount_paid || 0);
+    const diff = newAmount - oldAmount;
+
+    payment.amount_paid = newAmount;
+    payment.payment_date = body.payment_date ? new Date(body.payment_date) : payment.payment_date;
+    payment.notes = body.notes ?? null!;
+    await this.millPaymentsRepo.save(payment);
+
+    inventory.amount_paid_to_mill = Math.max(0, Number(inventory.amount_paid_to_mill || 0) + diff);
+    inventory.amount_pending_to_mill = Math.max(
+      0,
+      inventory.total_cost - inventory.amount_paid_to_mill,
+    );
+    inventory.payment_status =
+      inventory.amount_pending_to_mill === 0
+        ? InventoryPaymentStatus.PAID
+        : inventory.amount_paid_to_mill > 0
+          ? InventoryPaymentStatus.PARTIAL
+          : InventoryPaymentStatus.PENDING;
+    await this.inventoryRepo.save(inventory);
+
+    return payment;
+  }
+
+  async updateStockInPayment(
+    inventoryId: number,
+    body: { amount_paid: number },
+  ) {
+    const inventory = await this.inventoryRepo.findOne({
+      where: { id: inventoryId },
+    });
+    if (!inventory) throw new NotFoundException('Inventory record not found');
+
+    const payments = await this.millPaymentsRepo.find({
+      where: { inventory_id: inventoryId },
+    });
+    const explicitPaid = payments.reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
+    const stockInPaid = Math.max(0, Number(body.amount_paid || 0));
+
+    inventory.amount_paid_to_mill = explicitPaid + stockInPaid;
+    inventory.amount_pending_to_mill = Math.max(
+      0,
+      inventory.total_cost - inventory.amount_paid_to_mill,
+    );
+    inventory.payment_status =
+      inventory.amount_pending_to_mill === 0
+        ? InventoryPaymentStatus.PAID
+        : inventory.amount_paid_to_mill > 0
+          ? InventoryPaymentStatus.PARTIAL
+          : InventoryPaymentStatus.PENDING;
+    await this.inventoryRepo.save(inventory);
+
+    return inventory;
+  }
+
   async deleteOpeningBalance(id: number) {
     const record = await this.openingBalancesRepo.findOne({ where: { id } });
     if (!record) throw new NotFoundException('Opening balance not found');
     await this.openingBalancesRepo.remove(record);
     return { message: 'Deleted' };
+  }
+
+  async updateOpeningBalance(
+    id: number,
+    body: { description: string; amount: number; balance_date: string; notes?: string },
+  ) {
+    const record = await this.openingBalancesRepo.findOne({ where: { id } });
+    if (!record) throw new NotFoundException('Opening balance not found');
+    record.description = body.description;
+    record.amount = body.amount;
+    record.balance_date = body.balance_date;
+    record.notes = body.notes ?? null!;
+    return this.openingBalancesRepo.save(record);
   }
 
   async addManualPayment(
@@ -314,5 +405,17 @@ export class MillPaymentsService {
     if (!record) throw new NotFoundException('Manual payment not found');
     await this.manualPaymentsRepo.remove(record);
     return { message: 'Deleted' };
+  }
+
+  async updateManualPayment(
+    id: number,
+    body: { description: string; amount: number; payment_date: string },
+  ) {
+    const record = await this.manualPaymentsRepo.findOne({ where: { id } });
+    if (!record) throw new NotFoundException('Manual payment not found');
+    record.description = body.description;
+    record.amount = body.amount;
+    record.payment_date = body.payment_date;
+    return this.manualPaymentsRepo.save(record);
   }
 }

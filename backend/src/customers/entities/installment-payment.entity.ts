@@ -29,6 +29,9 @@ export class InstallmentPayment {
   @Column({ type: 'float' })
   amount: number;
 
+  @Column({ type: 'float', default: 0 })
+  discount_amount: number;
+
   @Column({ type: 'date' })
   payment_date: string;
 

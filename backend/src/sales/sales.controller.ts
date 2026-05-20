@@ -5,6 +5,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -20,6 +21,11 @@ export class SalesController {
   @Post()
   create(@Body() payload: CreateSaleDto) {
     return this.salesService.create(payload);
+  }
+
+  @Put(':id')
+  update(@Param('id', ParseIntPipe) id: number, @Body() payload: CreateSaleDto) {
+    return this.salesService.update(id, payload);
   }
 
   @Get()

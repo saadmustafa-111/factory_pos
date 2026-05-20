@@ -12,11 +12,10 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BackupService } from './backup.service';
 import { GoogleDriveService } from './google-drive.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-@UseGuards(JwtAuthGuard)
 @Controller('backup')
 export class BackupController {
   private readonly logger = new Logger(BackupController.name);
@@ -28,12 +27,14 @@ export class BackupController {
 
   /** GET /backup/status */
   @Get('status')
+  @UseGuards(JwtAuthGuard)
   async getStatus() {
     return this.backupService.getStatus();
   }
 
   /** POST /backup/now — manual local backup */
   @Post('now')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async backupNow() {
     try {
@@ -47,6 +48,7 @@ export class BackupController {
 
   /** POST /backup/cloud-now — triggered by renderer on Electron IPC signal */
   @Post('cloud-now')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async cloudNow() {
     try {
@@ -60,6 +62,7 @@ export class BackupController {
 
   /** POST /backup/restore — replaces live DB with selected backup file */
   @Post('restore')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async restore(@Body('filePath') filePath: string) {
     if (!filePath) throw new BadRequestException('filePath is required');
@@ -74,6 +77,7 @@ export class BackupController {
 
   /** GET /backup/auth-url — returns Google OAuth2 URL for the frontend to open */
   @Get('auth-url')
+  @UseGuards(JwtAuthGuard)
   getAuthUrl() {
     const url = this.googleDriveService.getAuthUrl();
     return { url };
@@ -86,29 +90,56 @@ export class BackupController {
    */
   @Get('oauth-callback')
   async oauthCallback(@Query('code') code: string, @Res() res: Response) {
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
     try {
+      if (!code) throw new BadRequestException('Missing Google authorization code');
       await this.googleDriveService.handleOAuthCallback(code);
-      // Return a plain HTML page the OAuth window can show
+      // Return a plain HTML page the OAuth window can show.
+      // Replace the browser URL so Google's one-time code is not left visible.
       res.send(`
-        <html><body style="font-family:sans-serif;text-align:center;padding:40px">
-          <h2 style="color:#16a34a">✅ Google Drive Connected!</h2>
+        <!doctype html>
+        <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="referrer" content="no-referrer" />
+          <title>Google Drive Connected</title>
+          <script>
+            window.history.replaceState({}, document.title, '/backup/oauth-callback');
+          </script>
+        </head>
+        <body style="font-family:sans-serif;text-align:center;padding:40px">
+          <h2 style="color:#16a34a">Google Drive Connected!</h2>
           <p>You can close this window and return to the app.</p>
           <script>setTimeout(()=>window.close(),2000)</script>
-        </body></html>
+        </body>
+        </html>
       `);
     } catch (err) {
       this.logger.error('OAuth callback failed', err);
       res.status(400).send(`
-        <html><body style="font-family:sans-serif;text-align:center;padding:40px">
-          <h2 style="color:#dc2626">❌ Connection Failed</h2>
-          <p>${String(err)}</p>
-        </body></html>
+        <!doctype html>
+        <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="referrer" content="no-referrer" />
+          <title>Google Drive Connection Failed</title>
+          <script>
+            window.history.replaceState({}, document.title, '/backup/oauth-callback');
+          </script>
+        </head>
+        <body style="font-family:sans-serif;text-align:center;padding:40px">
+          <h2 style="color:#dc2626">Connection Failed</h2>
+          <p>Please close this window and try connecting Google Drive again.</p>
+        </body>
+        </html>
       `);
     }
   }
 
   /** DELETE /backup/disconnect — removes stored Google token */
   @Post('disconnect-google')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async disconnectGoogle() {
     this.googleDriveService.disconnectGoogle();

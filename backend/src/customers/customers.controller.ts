@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Put,
   UseGuards,
@@ -30,6 +31,11 @@ export class CustomersController {
 
   @Put(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() payload: UpdateCustomerDto) {
+    return this.customersService.update(id, payload);
+  }
+
+  @Patch(':id')
+  patch(@Param('id', ParseIntPipe) id: number, @Body() payload: UpdateCustomerDto) {
     return this.customersService.update(id, payload);
   }
 }

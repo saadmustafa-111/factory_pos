@@ -282,6 +282,11 @@ export class CustomerLedgerService {
       order: { id: 'DESC' },
     });
 
+    const salePayments = await this.salePaymentsRepo.find({
+      where: { customer_id: customerId },
+      order: { payment_date: 'DESC' },
+    });
+
     // Purchase history (sales)
     const sales = await this.dataSource.query(
       `SELECT s.id, s.date, s.total_amount, s.paid_amount, s.pending_amount, s.status,
@@ -366,7 +371,27 @@ export class CustomerLedgerService {
         overdue_installments: overdueDues.length,
       },
       installment_plans: plans,
-      payment_history: payments,
+      payment_history: [
+        ...payments.map((p) => ({
+          id: `installment-${p.id}`,
+          amount: p.amount,
+          discount_amount: p.discount_amount || 0,
+          total_credit: Number(p.amount || 0) + Number(p.discount_amount || 0),
+          payment_date: p.payment_date,
+          payment_method: p.payment_method,
+          notes: p.notes,
+        })),
+        ...salePayments.map((p) => ({
+          id: `sale-${p.id}`,
+          amount: p.amount_paid,
+          amount_paid: p.amount_paid,
+          discount_amount: p.discount_amount || 0,
+          total_credit: Number(p.amount_paid || 0) + Number(p.discount_amount || 0),
+          payment_date: p.payment_date,
+          payment_method: 'cash',
+          notes: p.notes,
+        })),
+      ].sort((a, b) => (a.payment_date < b.payment_date ? 1 : -1)),
       purchase_history: purchaseHistory,
     };
   }
@@ -393,6 +418,32 @@ export class CustomerLedgerService {
     const ledger = await this.getOrCreateLedger(customerId);
     ledger.total_purchased += body.amount;
     ledger.remaining_balance = Math.max(0, ledger.total_purchased - ledger.total_paid);
+    await this.ledgerRepo.save(ledger);
+
+    return { success: true, id: record.id };
+  }
+
+  async updateManualCredit(
+    customerId: number,
+    creditId: number,
+    body: { item_description: string; amount: number; credit_date: string; notes?: string },
+  ) {
+    const record = await this.manualCreditsRepo.findOne({
+      where: { id: creditId, customer_id: customerId },
+    });
+    if (!record) throw new NotFoundException('Manual credit not found');
+
+    record.item_description = body.item_description;
+    record.amount = body.amount;
+    record.credit_date = body.credit_date;
+    record.notes = body.notes ?? null!;
+    await this.manualCreditsRepo.save(record);
+
+    const detail = await this.getCustomerDetail(customerId);
+    const ledger = await this.getOrCreateLedger(customerId);
+    ledger.total_purchased = detail.summary.total_purchased;
+    ledger.total_paid = detail.summary.total_paid;
+    ledger.remaining_balance = detail.summary.remaining_balance;
     await this.ledgerRepo.save(ledger);
 
     return { success: true, id: record.id };
@@ -473,6 +524,7 @@ export class CustomerLedgerService {
     customerId: number,
     body: {
       amount: number;
+      discount_amount?: number;
       payment_date: string;
       payment_method: string;
       installment_due_id?: number;
@@ -485,19 +537,23 @@ export class CustomerLedgerService {
     const customer = await this.customersRepo.findOne({ where: { id: customerId } });
     if (!customer) throw new NotFoundException('Customer not found');
 
-    let remaining = body.amount;
+    const amountCollected = Number(body.amount || 0);
+    const discountAmount = Number(body.discount_amount || 0);
+    const settlementAmount = amountCollected + discountAmount;
+    let remaining = settlementAmount;
 
     // Save payment record
     const payment = new InstallmentPayment();
     payment.customer_id = customerId;
-    payment.amount = body.amount;
+    payment.amount = amountCollected;
+    payment.discount_amount = discountAmount;
     payment.payment_date = body.payment_date;
     payment.payment_method = body.payment_method ?? 'cash';
     payment.installment_due_id = body.installment_due_id ?? null!;
     payment.installment_plan_id = body.installment_plan_id ?? null!;
     payment.cheque_number = body.cheque_number ?? null!;
     payment.bank_name = body.bank_name ?? null!;
-    payment.notes = body.notes ?? null!;
+    payment.notes = body.notes ?? (discountAmount > 0 ? `Discount: Rs ${discountAmount}` : null!);
     payment.status = 'confirmed';
     await this.paymentsRepo.save(payment);
 
@@ -564,7 +620,7 @@ export class CustomerLedgerService {
     } else {
       // General payment (no plan, no due) — apply to pending sales oldest-first,
       // then to pending manual credits oldest-first
-      let saleRemaining = body.amount;
+      let saleRemaining = settlementAmount;
       const pendingSales = await this.salesRepo.find({
         where: { customer_id: customerId },
         order: { date: 'ASC' },
@@ -604,7 +660,7 @@ export class CustomerLedgerService {
 
     // Update ledger totals
     const ledger = await this.getOrCreateLedger(customerId);
-    ledger.total_paid += body.amount;
+    ledger.total_paid += settlementAmount;
     ledger.remaining_balance = Math.max(0, ledger.total_purchased - ledger.total_paid);
     await this.ledgerRepo.save(ledger);
 
@@ -773,9 +829,9 @@ export class CustomerLedgerService {
         id: `pay-${p.id}`,
         date: new Date(p.payment_date),
         type: 'payment' as const,
-        description: p.notes || 'Payment received',
+        description: p.notes || (Number(p.discount_amount || 0) > 0 ? 'Payment received + discount' : 'Payment received'),
         debit: 0,
-        credit: Number(p.amount_paid),
+        credit: Number(p.amount_paid) + Number(p.discount_amount || 0),
       })),
     ];
 
@@ -794,7 +850,7 @@ export class CustomerLedgerService {
     });
 
     const totalDebit = salesRows.reduce((s, r) => s + Number(r.total_amount), 0);
-    const totalCredit = payments.reduce((s, r) => s + Number(r.amount_paid), 0);
+    const totalCredit = payments.reduce((s, r) => s + Number(r.amount_paid) + Number(r.discount_amount || 0), 0);
 
     // Sales summary table (sorted by date desc)
     const salesSummary = [...salesRows].sort((a, b) => (a.date < b.date ? 1 : -1));

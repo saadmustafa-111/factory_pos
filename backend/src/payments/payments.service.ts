@@ -19,17 +19,21 @@ export class PaymentsService {
     if (!sale) {
       throw new NotFoundException('Sale not found');
     }
+    const amountPaid = Number(payload.amount_paid || 0);
+    const discountAmount = Number(payload.discount_amount || 0);
+    const settlementAmount = amountPaid + discountAmount;
 
     const payment = this.paymentsRepo.create({
       sale_id: payload.sale_id,
       customer_id: payload.customer_id ?? sale.customer_id,
-      amount_paid: payload.amount_paid,
+      amount_paid: amountPaid,
+      discount_amount: discountAmount,
       payment_date: payload.payment_date ? new Date(payload.payment_date) : new Date(),
-      notes: payload.notes,
+      notes: payload.notes ?? (discountAmount > 0 ? `Discount: Rs ${discountAmount}` : undefined),
     });
     await this.paymentsRepo.save(payment);
 
-    sale.paid_amount += payload.amount_paid;
+    sale.paid_amount += settlementAmount;
     sale.pending_amount = Math.max(0, sale.total_amount - sale.paid_amount);
     sale.status =
       sale.pending_amount === 0

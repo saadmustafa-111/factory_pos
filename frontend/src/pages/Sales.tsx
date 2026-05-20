@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, BadgeCheck, CalendarDays, ChevronRight, Clock, FileDown, History, MessageCircle, Package, Plus, Printer, Search, ShoppingBag, ShoppingCart, Trash2, User, X } from 'lucide-react';
+import { AlertCircle, BadgeCheck, CalendarDays, ChevronRight, Clock, FileDown, History, MessageCircle, Package, Pencil, Plus, Printer, Search, ShoppingBag, ShoppingCart, Trash2, User, X } from 'lucide-react';
 import { AttachmentManager } from '../components/AttachmentManager';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
@@ -98,6 +98,7 @@ export default function Sales() {
   const [historyPage, setHistoryPage] = useState(1);
   const [historyPageSize, setHistoryPageSize] = useState(10);
   const [newSaleOpen, setNewSaleOpen] = useState(false);
+  const [editingSaleId, setEditingSaleId] = useState<number | null>(null);
 
   const load = async () => {
     const [p, b, s, c] = await Promise.all([
@@ -172,13 +173,59 @@ export default function Sales() {
     }
   }, [historyPage, historyTotalPages]);
 
+  const resetSaleForm = () => {
+    setItems([]);
+    setSale({ date: new Date().toISOString().slice(0, 10), isCredit: false, credit_days: 0, due_date: '', amount_paid: 0, loading_charges: 0, discount: 0, notes: '' });
+    setSelectedCustomerId(0);
+    setCustomerSearch('');
+    setIsWalkIn(false);
+    setWalkInName('');
+    setEditingSaleId(null);
+    setDraft({ product_id: 0, quantity: 0, sale_price_per_unit: 0, total: 0 });
+    setValidationError('');
+  };
+
+  const openNewSale = () => {
+    resetSaleForm();
+    setNewSaleOpen(true);
+  };
+
+  const openEditSale = async (saleId: number) => {
+    const res = await api.get(`/sales/${saleId}`);
+    const s = res.data;
+    const customerId = Number(s.customer_id || s.customer?.id || 0);
+    setEditingSaleId(s.id);
+    setSelectedCustomerId(customerId);
+    setIsWalkIn(!customerId);
+    setWalkInName(!customerId ? (s.customer_name || '') : '');
+    setCustomerSearch(customerId ? (s.customer?.name || s.customer_name || '') : '');
+    setSale({
+      date: String(s.date).slice(0, 10),
+      isCredit: Number(s.pending_amount || 0) > 0,
+      credit_days: Number(s.credit_days || 0),
+      due_date: s.due_date ? String(s.due_date).slice(0, 10) : '',
+      amount_paid: Number(s.paid_amount || 0),
+      loading_charges: Number(s.loading_charges || 0),
+      discount: Number(s.discount || 0),
+      notes: s.notes || '',
+    });
+    setItems((s.items || []).map((item: any) => ({
+      product_id: item.product_id,
+      cement_brand_id: item.cement_brand_id || undefined,
+      quantity: Number(item.quantity || 0),
+      sale_price_per_unit: Number(item.sale_price_per_unit || 0),
+      total: Number(item.quantity || 0) * Number(item.sale_price_per_unit || 0),
+    })));
+    setNewSaleOpen(true);
+  };
+
   const submitSale = async () => {
     setValidationError('');
     if (!items.length) { setValidationError('Please add at least one item.'); return; }
     if (sale.isCredit && !sale.credit_days) { setValidationError('Credit sale requires Credit Days to be set (e.g. 30 days).'); return; }
     if (!isWalkIn && !selectedCustomerId) { setValidationError('Please select a customer or use Walk-in / Cash Customer.'); return; }
 
-    const resp = await api.post('/sales', {
+    const payload = {
       date: sale.date,
       due_date: sale.isCredit ? sale.due_date || undefined : undefined,
       credit_days: sale.isCredit ? Number(sale.credit_days || 0) : undefined,
@@ -192,7 +239,11 @@ export default function Sales() {
         product_id: i.product_id, cement_brand_id: i.cement_brand_id,
         quantity: Number(i.quantity), sale_price_per_unit: Number(i.sale_price_per_unit),
       })),
-    });
+    };
+
+    const resp = editingSaleId
+      ? await api.put(`/sales/${editingSaleId}`, payload)
+      : await api.post('/sales', payload);
 
     // Build receipt data for printing
     const savedSale = resp.data;
@@ -233,10 +284,8 @@ export default function Sales() {
       notes: sale.notes,
     };
     setLastSaleReceipt(receiptData);
-    setItems([]);
-    setSale({ date: new Date().toISOString().slice(0, 10), isCredit: false, credit_days: 0, due_date: '', amount_paid: 0, loading_charges: 0, discount: 0, notes: '' });
-    setSelectedCustomerId(0); setCustomerSearch(''); setIsWalkIn(false); setWalkInName('');
-    setSavedMsg(t.completeSale + ' ✓');
+    resetSaleForm();
+    setSavedMsg((editingSaleId ? 'Sale updated' : t.completeSale) + ' ✓');
     setTimeout(() => { setSavedMsg(''); setLastSaleReceipt(null); }, 30000);
     setNewSaleOpen(false);
     await load();
@@ -406,7 +455,7 @@ export default function Sales() {
             <p className="text-[10px] font-semibold uppercase tracking-wide text-industrial-500">{isUrdu ? 'بقایا' : 'Total Due Balance'}</p>
             <p className="text-sm font-bold text-accent-danger">{fmtCurrency(allSalesTotals.pending)}</p>
           </div>
-          <Button onClick={() => setNewSaleOpen(true)} className="h-9">
+          <Button onClick={openNewSale} className="h-9">
             <Plus className="h-4 w-4 mr-1.5" />{isUrdu ? 'نئی سیل' : 'New Sale'}
           </Button>
         </div>
@@ -539,6 +588,11 @@ export default function Sales() {
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => openEditSale(s.id)}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                            title="Edit Sale">
+                            <Pencil size={13} />
+                          </button>
                           <button onClick={() => shareExistingSaleOnWhatsApp(s.id)}
                             className="flex h-7 w-7 items-center justify-center rounded-lg text-green-600 hover:bg-green-50 hover:text-green-700 transition-colors"
                             title="Share on WhatsApp">
@@ -583,11 +637,11 @@ export default function Sales() {
                   <ShoppingCart className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-white">{t.newSale}</h2>
-                  <p className="text-xs text-green-200 mt-0.5">{isUrdu ? 'نئی فروخت درج کریں' : 'Record a new sale transaction'}</p>
+                  <h2 className="text-lg font-bold text-white">{editingSaleId ? 'Edit Sale' : t.newSale}</h2>
+                  <p className="text-xs text-green-200 mt-0.5">{editingSaleId ? 'Update sale transaction' : isUrdu ? 'نئی فروخت درج کریں' : 'Record a new sale transaction'}</p>
                 </div>
               </div>
-              <button onClick={() => setNewSaleOpen(false)}
+              <button onClick={() => { setNewSaleOpen(false); resetSaleForm(); }}
                 className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors">
                 <X className="h-5 w-5" />
               </button>
@@ -931,9 +985,9 @@ export default function Sales() {
                   <button type="button" onClick={submitSale}
                     className="w-full flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 active:scale-[0.98] text-white font-bold py-2.5 text-sm transition-all shadow-md disabled:opacity-50"
                     disabled={items.length === 0}>
-                    <ShoppingBag className="h-4 w-4" />{t.completeSale}
+                    <ShoppingBag className="h-4 w-4" />{editingSaleId ? 'Save Changes' : t.completeSale}
                   </button>
-                  <button type="button" onClick={() => setNewSaleOpen(false)}
+                  <button type="button" onClick={() => { setNewSaleOpen(false); resetSaleForm(); }}
                     className="w-full rounded-xl border-2 border-industrial-200 bg-white text-industrial-600 hover:bg-industrial-50 font-semibold py-2 text-sm transition-colors">
                     {isUrdu ? 'منسوخ' : 'Cancel'}
                   </button>
