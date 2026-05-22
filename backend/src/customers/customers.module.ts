@@ -8,6 +8,7 @@ import { InstallmentPayment } from './entities/installment-payment.entity';
 import { CustomerManualCredit } from './entities/customer-manual-credit.entity';
 import { Sale } from '../sales/entities/sale.entity';
 import { Payment } from '../payments/entities/payment.entity';
+import { AdvancePayment } from '../advance-payments/entities/advance-payment.entity';
 import { CustomersController } from './customers.controller';
 import { CustomersService } from './customers.service';
 import { CustomerLedgerService } from './customer-ledger.service';
@@ -24,6 +25,7 @@ import { CustomerLedgerController } from './customer-ledger.controller';
       CustomerManualCredit,
       Sale,
       Payment,
+      AdvancePayment,
     ]),
   ],
   controllers: [CustomersController, CustomerLedgerController],

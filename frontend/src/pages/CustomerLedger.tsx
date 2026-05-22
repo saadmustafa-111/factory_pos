@@ -11,12 +11,12 @@ import { useLang } from '../lib/i18n';
 import { localizeApiText } from '../lib/localize';
 import { fmtCurrency } from '../lib/utils';
 import { downloadCustomerLedgerPdf } from '../lib/pdfExports';
-import { RecordAdvanceModal, type CementBrand, type Customer, type Product } from './AdvancePayments';
+import { ProcessPickupModal, RecordAdvanceModal, type AdvancePayment, type CementBrand, type Customer, type Product } from './AdvancePayments';
 
 interface LedgerEntry {
   id: string;
   date: string;
-  type: 'sale' | 'payment';
+  type: 'sale' | 'payment' | 'advance';
   description: string;
   debit: number;
   credit: number;
@@ -44,6 +44,7 @@ interface CustomerLedgerData {
   totalDebit: number;
   totalCredit: number;
   balance: number;
+  advanceBalance: number;
   entries: LedgerEntry[];
   salesHistory: SaleRow[];
 }
@@ -55,6 +56,7 @@ interface CustomerSummary {
   remaining_balance: number;
   total_purchased: number;
   total_paid: number;
+  advance_balance?: number;
   status: string;
 }
 
@@ -76,7 +78,7 @@ export default function CustomerLedger() {
   });
   const [ledger, setLedger] = useState<CustomerLedgerData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'ledger' | 'sales'>('ledger');
+  const [activeTab, setActiveTab] = useState<'ledger' | 'sales' | 'advances'>('ledger');
   const [sortBy, setSortBy] = useState<'name' | 'balance' | 'purchased'>('balance');
   const [payModal, setPayModal] = useState<{ sale_id?: number; customer_id: number; customer_name?: string; max: number; description: string; general?: boolean } | null>(null);
   const [payAmount, setPayAmount] = useState('');
@@ -94,10 +96,36 @@ export default function CustomerLedger() {
   const [advanceProducts, setAdvanceProducts] = useState<Product[]>([]);
   const [advanceCementBrands, setAdvanceCementBrands] = useState<CementBrand[]>([]);
   const [advanceCustomers, setAdvanceCustomers] = useState<Customer[]>([]);
+  const [allAdvances, setAllAdvances] = useState<AdvancePayment[]>([]);
+  const [pickupAdvance, setPickupAdvance] = useState<AdvancePayment | null>(null);
+  const clean = (value?: string | number | null) => String(value ?? '').trim().toLowerCase();
 
   const loadSummary = async () => {
-    const { data } = await api.get('/customers/ledger-list');
-    setCustomers(data);
+    const [{ data }, advancesRes] = await Promise.all([
+      api.get('/customers/ledger-list'),
+      api.get('/advance-payments'),
+    ]);
+    const advances: AdvancePayment[] = advancesRes.data ?? [];
+    setAllAdvances(advances);
+    const activeAdvances = advances.filter((advance) => advance.status === 'pending' || advance.status === 'partial');
+    const withAdvances = (data as CustomerSummary[]).map((customer) => {
+      const advanceTotal = activeAdvances
+        .filter((advance) =>
+          advance.customer_id === customer.id ||
+          (clean(advance.customer_name) && clean(advance.customer_name) === clean(customer.name)) ||
+          (clean(advance.customer_phone) && clean(advance.customer_phone) === clean(customer.phone))
+        )
+        .reduce((sum, advance) => sum + Number(advance.paid_amount || 0), 0);
+      const existingAdvance = Number(customer.advance_balance || 0);
+      const missingAdvance = Math.max(0, advanceTotal - existingAdvance);
+      return {
+        ...customer,
+        total_paid: Number(customer.total_paid || 0) + missingAdvance,
+        remaining_balance: Math.max(0, Number(customer.remaining_balance || 0) - missingAdvance),
+        advance_balance: Math.max(existingAdvance, advanceTotal),
+      };
+    });
+    setCustomers(withAdvances);
   };
 
   const loadLedger = async (id: number) => {
@@ -114,15 +142,15 @@ export default function CustomerLedger() {
           description: s.items_summary || `Sale #${s.id}`,
           debit: Number(s.total_amount),
           credit: 0,
-          sale_id: s.source === 'sale' ? s.id : undefined,
+          sale_id: s.source === 'sale' || s.source === 'advance_pickup' ? s.id : undefined,
           payment_status: s.status,
           manual_credit_id: s.source === 'manual' ? s.id : undefined,
         })),
         ...data.payment_history.map((p: any) => ({
           id: `pay-${p.id}`,
           date: p.payment_date,
-          type: 'payment' as const,
-          description: Number(p.discount_amount || 0) > 0 ? 'Payment received + discount' : 'Payment received',
+          type: p.source === 'advance' ? 'advance' as const : 'payment' as const,
+          description: p.description ?? (Number(p.discount_amount || 0) > 0 ? 'Payment received + discount' : 'Payment received'),
           debit: 0,
           credit: Number(p.total_credit ?? (Number(p.amount_paid ?? p.amount) + Number(p.discount_amount || 0))),
           discount_amount: Number(p.discount_amount || 0),
@@ -140,6 +168,7 @@ export default function CustomerLedger() {
         totalDebit: data.summary.total_purchased,
         totalCredit: data.summary.total_paid,
         balance: data.summary.remaining_balance,
+        advanceBalance: Number(data.summary.advance_balance || 0),
         entries,
         salesHistory: data.purchase_history,
       });
@@ -202,6 +231,21 @@ export default function CustomerLedger() {
       return b.total_purchased - a.total_purchased;
     });
   }, [filteredCustomers, sortBy]);
+
+  const selectedAdvances = useMemo(() => {
+    if (!ledger) return [];
+    return allAdvances.filter((advance) =>
+      advance.customer_id === ledger.customer.id ||
+      (clean(advance.customer_name) && clean(advance.customer_name) === clean(ledger.customer.name)) ||
+      (clean(advance.customer_phone) && clean(advance.customer_phone) === clean(ledger.customer.phone))
+    );
+  }, [allAdvances, ledger]);
+  const selectedActiveAdvanceTotal = useMemo(
+    () => selectedAdvances
+      .filter((advance) => advance.status === 'pending' || advance.status === 'partial')
+      .reduce((sum, advance) => sum + Number(advance.paid_amount || 0), 0),
+    [selectedAdvances],
+  );
 
   const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -388,6 +432,11 @@ export default function CustomerLedger() {
                       }`}>
                         {c.remaining_balance > 0 ? `Due: ${HT(c.remaining_balance)}` : 'Cleared'}
                       </p>
+                      {Number(c.advance_balance || 0) > 0 && (
+                        <p className={`text-[10px] font-bold mt-0.5 ${isSelected ? 'text-blue-200' : 'text-blue-600'}`}>
+                          Advance: {HT(Number(c.advance_balance || 0))}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </button>
@@ -482,6 +531,11 @@ export default function CustomerLedger() {
                               <div>
                                 <p className="font-semibold text-industrial-900">{localizeApiText(c.name, isUrdu)}</p>
                                 {c.phone && <p className="text-xs text-industrial-400 mt-0.5">{c.phone}</p>}
+                                {Number(c.advance_balance || 0) > 0 && (
+                                  <p className="mt-1 inline-flex rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-700">
+                                    Advance: {HT(Number(c.advance_balance || 0))}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -595,6 +649,12 @@ export default function CustomerLedger() {
                       <p className="text-[10px] font-bold uppercase tracking-wider text-green-500 mb-0.5">Collected</p>
                       <p className="text-base font-bold text-green-700">{HT(ledger.totalCredit)}</p>
                     </div>
+                    {ledger.advanceBalance > 0 && (
+                      <div className="text-center px-4 py-2 rounded-xl bg-blue-50 border border-blue-200">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-blue-500 mb-0.5">Advance</p>
+                        <p className="text-base font-bold text-blue-700">{HT(ledger.advanceBalance)}</p>
+                      </div>
+                    )}
                     <div className={`text-center px-4 py-2 rounded-xl border ${ledger.balance > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
                       <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${ledger.balance > 0 ? 'text-red-400' : 'text-green-500'}`}>Balance</p>
                       <p className={`text-base font-bold ${ledger.balance > 0 ? 'text-red-700' : 'text-green-700'}`}>{HT(ledger.balance)}</p>
@@ -670,7 +730,7 @@ export default function CustomerLedger() {
 
               {/* ── Tabs ── */}
               <div className="shrink-0 flex gap-0 border-b-2 border-industrial-100 bg-white px-6">
-                {(['ledger', 'sales'] as const).map((tab) => (
+                {(['ledger', 'sales', 'advances'] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -680,12 +740,21 @@ export default function CustomerLedger() {
                         : 'text-industrial-400 hover:text-industrial-700'
                     }`}
                   >
-                    {tab === 'ledger' ? 'Transactions' : (
+                    {tab === 'ledger' ? 'Transactions' : tab === 'sales' ? (
                       <span className="flex items-center gap-1.5">
                         Sales Summary
                         {ledger.salesHistory.length > 0 && (
                           <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-industrial-800 text-white text-[9px] font-bold px-1">
                             {ledger.salesHistory.length}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        Advances
+                        {selectedAdvances.length > 0 && (
+                          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 text-white text-[9px] font-bold px-1">
+                            {selectedAdvances.length}
                           </span>
                         )}
                       </span>
@@ -733,7 +802,7 @@ export default function CustomerLedger() {
                           </td>
                           <td className="px-5 py-3.5">
                             <div className="flex items-center justify-end">
-                              {row.source === 'sale' && (
+                              {(row.source === 'sale' || row.source === 'advance_pickup') && (
                                 <AttachmentManager
                                   entityType="sale"
                                   entityId={row.id}
@@ -762,6 +831,88 @@ export default function CustomerLedger() {
                   </table>
                 )}
 
+                {/* Advance Payments */}
+                {activeTab === 'advances' && (
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-industrial-50 border-b-2 border-industrial-200 z-10">
+                      <tr>
+                        <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-industrial-500">Date</th>
+                        <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-industrial-500">Items</th>
+                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Advance Amount</th>
+                        <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-industrial-500">Expected Pickup</th>
+                        <th className="px-5 py-3 text-center text-xs font-bold uppercase tracking-wider text-industrial-500">Status</th>
+                        <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-industrial-500">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-industrial-100">
+                      {selectedAdvances.length === 0 ? (
+                        <tr><td colSpan={6} className="py-16 text-center text-industrial-400">No advance payments for this customer</td></tr>
+                      ) : selectedAdvances.map((advance) => {
+                        const statusClass =
+                          advance.status === 'completed' ? 'bg-green-50 text-green-700 border-green-200'
+                          : advance.status === 'partial' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          : advance.status === 'cancelled' ? 'bg-slate-50 text-slate-600 border-slate-200'
+                          : 'bg-amber-50 text-amber-700 border-amber-200';
+                        return (
+                          <tr key={advance.id} className="hover:bg-blue-50/40 transition-colors">
+                            <td className="px-5 py-3.5 text-industrial-500 text-xs whitespace-nowrap">{fmtDate(advance.payment_date)}</td>
+                            <td className="px-5 py-3.5">
+                              <div className="space-y-1">
+                                {advance.items?.length ? advance.items.map((item) => (
+                                  <div key={item.id} className="text-xs font-medium text-industrial-800">
+                                    {item.product?.name ?? 'Item'}
+                                    {item.cement_brand && ` (${item.cement_brand.brand_name})`}
+                                    {' x '}
+                                    {item.quantity} {item.unit}
+                                    {item.quantity_picked > 0 && (
+                                      <span className="ml-1 font-bold text-green-700">({item.quantity_picked} picked)</span>
+                                    )}
+                                  </div>
+                                )) : <span className="text-industrial-400">No items entered</span>}
+                                {advance.notes && <p className="text-[11px] text-industrial-400">{advance.notes}</p>}
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5 text-right font-bold text-blue-700">{HT(Number(advance.paid_amount || 0))}</td>
+                            <td className="px-5 py-3.5 text-industrial-600 text-xs">
+                              {advance.expected_pickup_date ? fmtDate(advance.expected_pickup_date) : '—'}
+                            </td>
+                            <td className="px-5 py-3.5 text-center">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusClass}`}>
+                                {advance.status}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3.5 text-right">
+                              {(advance.status === 'pending' || advance.status === 'partial') ? (
+                                <button
+                                  onClick={() => setPickupAdvance(advance)}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-blue-700 transition-colors"
+                                >
+                                  Process Pickup
+                                </button>
+                              ) : advance.converted_sale_id ? (
+                                <span className="text-xs font-bold text-green-700">Sale #{advance.converted_sale_id}</span>
+                              ) : (
+                                <span className="text-xs text-industrial-300">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    {selectedAdvances.length > 0 && (
+                      <tfoot className="sticky bottom-0 bg-industrial-100 border-t-2 border-industrial-200">
+                        <tr>
+                          <td className="px-5 py-3 font-bold text-industrial-700 text-sm" colSpan={2}>Active Advances</td>
+                          <td className="px-5 py-3 text-right font-bold text-blue-700">
+                            {HT(selectedActiveAdvanceTotal)}
+                          </td>
+                          <td colSpan={3} />
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                )}
+
                 {/* Transaction Ledger */}
                 {activeTab === 'ledger' && (
                   <table className="w-full text-sm">
@@ -780,10 +931,11 @@ export default function CustomerLedger() {
                         <tr><td colSpan={6} className="py-16 text-center text-industrial-400">No transactions yet</td></tr>
                       ) : ledger.entries.map((entry) => {
                         const isSale = entry.type === 'sale';
+                        const isAdvance = entry.type === 'advance';
                         return (
                           <tr
                             key={entry.id}
-                            className={`transition-colors ${isSale ? 'hover:bg-red-50/40' : 'hover:bg-green-50/40'}`}
+                            className={`transition-colors ${isSale ? 'hover:bg-red-50/40' : isAdvance ? 'hover:bg-blue-50/40' : 'hover:bg-green-50/40'}`}
                           >
                             <td className="px-5 py-3.5 text-industrial-500 text-xs whitespace-nowrap">
                               {fmtDate(entry.date)}
@@ -791,9 +943,9 @@ export default function CustomerLedger() {
                             <td className="px-5 py-3.5">
                               <div className="flex items-center gap-2">
                                 <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[9px] font-bold ${
-                                  isSale ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'
+                                  isSale ? 'bg-red-100 text-red-600' : isAdvance ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
                                 }`}>
-                                  {isSale ? 'BILL' : 'PAID'}
+                                  {isSale ? 'BILL' : isAdvance ? 'ADV' : 'PAID'}
                                 </span>
                                 <span className="font-medium text-industrial-800 truncate max-w-xs">{entry.description}</span>
                                 {entry.payment_status && isSale && (
@@ -1069,6 +1221,19 @@ export default function CustomerLedger() {
             setAdvanceCustomerId(undefined);
             await loadSummary();
             if (selectedId) await loadLedger(selectedId);
+            setActiveTab('advances');
+          }}
+        />
+      )}
+      {pickupAdvance && (
+        <ProcessPickupModal
+          advance={pickupAdvance}
+          onClose={() => setPickupAdvance(null)}
+          onProcessed={async () => {
+            setPickupAdvance(null);
+            await loadSummary();
+            if (selectedId) await loadLedger(selectedId);
+            setActiveTab('advances');
           }}
         />
       )}

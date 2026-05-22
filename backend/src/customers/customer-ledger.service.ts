@@ -15,6 +15,7 @@ import { InstallmentPlan } from './entities/installment-plan.entity';
 import { CustomerManualCredit } from './entities/customer-manual-credit.entity';
 import { Sale, SaleStatus } from '../sales/entities/sale.entity';
 import { Payment } from '../payments/entities/payment.entity';
+import { AdvancePayment } from '../advance-payments/entities/advance-payment.entity';
 
 @Injectable()
 export class CustomerLedgerService {
@@ -37,6 +38,8 @@ export class CustomerLedgerService {
     private readonly salesRepo: Repository<Sale>,
     @InjectRepository(Payment)
     private readonly salePaymentsRepo: Repository<Payment>,
+    @InjectRepository(AdvancePayment)
+    private readonly advancePaymentsRepo: Repository<AdvancePayment>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -72,6 +75,44 @@ export class CustomerLedgerService {
       ledger = await this.ledgerRepo.save(ledger);
     }
     return ledger;
+  }
+
+  private advanceItemsSummary(advance: AdvancePayment): string {
+    return (advance.items ?? [])
+      .map((item) => {
+        const product = item.product?.name ?? 'Item';
+        const brand = item.cement_brand?.brand_name ? ` (${item.cement_brand.brand_name})` : '';
+        return `${product}${brand} x${item.quantity} ${item.unit}`;
+      })
+      .join(', ');
+  }
+
+  private advanceSaleIdFromNotes(notes?: string | null): number | null {
+    const match = String(notes ?? '').match(/Advance Payment #(\d+)/i);
+    return match ? Number(match[1]) : null;
+  }
+
+  private findCustomerAdvances(customer: Pick<Customer, 'id' | 'name' | 'phone'>) {
+    const qb = this.advancePaymentsRepo
+      .createQueryBuilder('ap')
+      .leftJoinAndSelect('ap.items', 'items')
+      .leftJoinAndSelect('items.product', 'product')
+      .leftJoinAndSelect('items.cement_brand', 'cement_brand')
+      .where('ap.status != :cancelled', { cancelled: 'cancelled' })
+      .andWhere(
+        `(ap.customer_id = :customerId
+          OR LOWER(ap.customer_name) = LOWER(:customerName)
+          ${customer.phone ? 'OR ap.customer_phone = :customerPhone' : ''})`,
+        {
+          customerId: customer.id,
+          customerName: customer.name,
+          customerPhone: customer.phone,
+        },
+      )
+      .orderBy('ap.payment_date', 'DESC')
+      .addOrderBy('ap.id', 'DESC');
+
+    return qb.getMany();
   }
 
   // ─── LIST WITH FILTERS ────────────────────────────────────────────────────
@@ -116,6 +157,29 @@ export class CustomerLedgerService {
         );
         const manualCreditPending = Number(manualCreditPendingRes[0]?.total_pending ?? 0);
 
+        const advancePayments = await this.findCustomerAdvances(customer);
+        const pickupSales = await this.dataSource.query(
+          `SELECT s.notes, s.paid_amount
+           FROM sales s
+           WHERE s.customer_id = ?
+             AND s.notes LIKE '%Advance Payment #%'
+           ORDER BY s.date ASC`,
+          [customer.id],
+        );
+        const pickupPaidByAdvance = new Map<number, number>();
+        pickupSales.forEach((sale: any) => {
+          const advanceId = this.advanceSaleIdFromNotes(sale.notes);
+          if (!advanceId) return;
+          pickupPaidByAdvance.set(
+            advanceId,
+            (pickupPaidByAdvance.get(advanceId) ?? 0) + Number(sale.paid_amount || 0),
+          );
+        });
+        const advanceCreditNotInSales = advancePayments.reduce((sum, advance) => {
+          const alreadyShownAsSalePaid = pickupPaidByAdvance.get(advance.id) ?? 0;
+          return sum + Math.max(0, Number(advance.paid_amount || 0) - alreadyShownAsSalePaid);
+        }, 0);
+
         // Last purchase / payment dates from sales
         const lastSale = await this.dataSource.query(
           `SELECT MAX(s.date) as last_date FROM sales s WHERE s.customer_id = ?`,
@@ -140,7 +204,11 @@ export class CustomerLedgerService {
         };
 
         const ledgerBalance = Number(custLedger.remaining_balance ?? 0);
-        const effectiveBalance = Math.max(ledgerBalance, salesPending + manualCreditPending);
+        const displayTotalPaid = Number(custLedger.total_paid ?? 0) + advanceCreditNotInSales;
+        const effectiveBalance = Math.max(
+          ledgerBalance,
+          salesPending + manualCreditPending - advanceCreditNotInSales,
+        );
         const effectiveStatus =
           overdueAmount > 0 ? 'overdue' : (effectiveBalance > 0 ? 'active' : 'clear');
 
@@ -153,8 +221,9 @@ export class CustomerLedgerService {
           credit_limit: custLedger.credit_limit,
           payment_term_days: custLedger.payment_term_days,
           total_purchased: custLedger.total_purchased,
-          total_paid: custLedger.total_paid,
+          total_paid: displayTotalPaid,
           remaining_balance: effectiveBalance,
+          advance_balance: advanceCreditNotInSales,
           sales_pending: salesPending,
           overdue_amount: overdueAmount,
           overdue_installments: overdueDues.length,
@@ -287,9 +356,11 @@ export class CustomerLedgerService {
       order: { payment_date: 'DESC' },
     });
 
+    const advancePayments = await this.findCustomerAdvances(customer);
+
     // Purchase history (sales)
     const sales = await this.dataSource.query(
-      `SELECT s.id, s.date, s.total_amount, s.paid_amount, s.pending_amount, s.status,
+      `SELECT s.id, s.date, s.total_amount, s.paid_amount, s.pending_amount, s.status, s.notes,
               group_concat(p.name || ' x' || si.quantity, ', ') as items_summary
        FROM sales s
        LEFT JOIN sale_items si ON si.sale_id = s.id
@@ -312,16 +383,23 @@ export class CustomerLedgerService {
 
     // Merge sales + manual credits into one purchase history, sorted by date desc
     const purchaseHistory = [
-      ...sales.map((s: any) => ({
-        id: s.id,
-        date: s.date,
-        total_amount: Number(s.total_amount),
-        paid_amount: Number(s.paid_amount),
-        pending_amount: Number(s.pending_amount),
-        status: s.status,
-        items_summary: s.items_summary,
-        source: 'sale',
-      })),
+      ...sales.map((s: any) => {
+        const advanceId = this.advanceSaleIdFromNotes(s.notes);
+        return {
+          id: s.id,
+          date: s.date,
+          total_amount: Number(s.total_amount),
+          paid_amount: Number(s.paid_amount),
+          pending_amount: Number(s.pending_amount),
+          status: s.status,
+          items_summary: advanceId
+            ? `Pickup from Advance #${advanceId}: ${s.items_summary ?? ''}`.trim()
+            : s.items_summary,
+          notes: s.notes,
+          source: advanceId ? 'advance_pickup' : 'sale',
+          advance_payment_id: advanceId ?? undefined,
+        };
+      }),
       ...manualCredits.map((mc) => {
         const pendingAmt = mc.amount - mc.paid_amount;
         return {
@@ -352,9 +430,22 @@ export class CustomerLedgerService {
     const salesTotal = sales.reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0);
     const salesPending = sales.reduce((sum: number, s: any) => sum + Number(s.pending_amount || 0), 0);
     const manualPaymentsApplied = manualCredits.reduce((sum, mc) => sum + mc.paid_amount, 0);
+    const pickupPaidByAdvance = new Map<number, number>();
+    sales.forEach((s: any) => {
+      const advanceId = this.advanceSaleIdFromNotes(s.notes);
+      if (!advanceId) return;
+      pickupPaidByAdvance.set(
+        advanceId,
+        (pickupPaidByAdvance.get(advanceId) ?? 0) + Number(s.paid_amount || 0),
+      );
+    });
+    const advanceCreditNotInSales = advancePayments.reduce((sum, advance) => {
+      const alreadyShownAsSalePaid = pickupPaidByAdvance.get(advance.id) ?? 0;
+      return sum + Math.max(0, Number(advance.paid_amount || 0) - alreadyShownAsSalePaid);
+    }, 0);
     const totalPurchased = salesTotal + manualTotal;
-    const totalPaid = salesPaid + manualPaymentsApplied;
-    const remainingBalance = salesPending + (manualTotal - manualPaymentsApplied);
+    const totalPaid = salesPaid + manualPaymentsApplied + advanceCreditNotInSales;
+    const remainingBalance = salesPending + (manualTotal - manualPaymentsApplied) - advanceCreditNotInSales;
 
     return {
       customer: {
@@ -367,6 +458,7 @@ export class CustomerLedgerService {
         total_purchased: totalPurchased,
         total_paid: totalPaid,
         remaining_balance: remainingBalance,
+        advance_balance: advanceCreditNotInSales,
         overdue_amount: overdueAmount,
         overdue_installments: overdueDues.length,
       },
@@ -390,6 +482,20 @@ export class CustomerLedgerService {
           payment_date: p.payment_date,
           payment_method: 'cash',
           notes: p.notes,
+        })),
+        ...advancePayments.map((p) => ({
+          id: `advance-${p.id}`,
+          amount: p.paid_amount,
+          amount_paid: p.paid_amount,
+          discount_amount: 0,
+          total_credit: Number(p.paid_amount || 0),
+          payment_date: p.payment_date,
+          payment_method: p.payment_method,
+          notes: p.notes,
+          description: `Advance Payment #${p.id}${p.status ? ` (${p.status})` : ''}: ${this.advanceItemsSummary(p)}`,
+          source: 'advance',
+          advance_payment_id: p.id,
+          advance_status: p.status,
         })),
       ].sort((a, b) => (a.payment_date < b.payment_date ? 1 : -1)),
       purchase_history: purchaseHistory,

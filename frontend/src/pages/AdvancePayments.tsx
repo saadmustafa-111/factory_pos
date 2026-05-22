@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Package, Plus, Search, X } from 'lucide-react';
+import { CheckCircle, Package, Plus, Search, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { fmtCurrency } from '../lib/utils';
 import { Modal } from '../components/ui/modal';
 
-interface AdvancePaymentItem {
+export interface AdvancePaymentItem {
   id: number;
   product_id: number;
   cement_brand_id?: number;
@@ -19,7 +19,7 @@ interface AdvancePaymentItem {
   total_amount: number;
 }
 
-interface AdvancePayment {
+export interface AdvancePayment {
   id: number;
   customer_id?: number;
   customer_name: string;
@@ -167,7 +167,9 @@ export default function AdvancePayments() {
   const getSummary = (list: AdvancePayment[]) => {
     const totalAdvances = list.filter((a) => a.status !== 'cancelled').length;
     const pendingPickups = list.filter((a) => a.status === 'pending' || a.status === 'partial').length;
-    const totalAmount = list.filter((a) => a.status !== 'cancelled').reduce((sum, a) => sum + a.paid_amount, 0);
+    const totalAmount = list
+      .filter((a) => a.status === 'pending' || a.status === 'partial')
+      .reduce((sum, a) => sum + a.paid_amount, 0);
     return { totalAdvances, pendingPickups, totalAmount };
   };
   const { totalAdvances, pendingPickups, totalAmount } = getSummary(advances);
@@ -678,7 +680,7 @@ export function RecordAdvanceModal({
 }
 
 // Process Pickup Modal Component
-function ProcessPickupModal({
+export function ProcessPickupModal({
   advance,
   onClose,
   onProcessed,
