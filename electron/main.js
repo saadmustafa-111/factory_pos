@@ -163,7 +163,7 @@ async function waitForBackend(maxWaitMs = 15000) {
     const start = Date.now();
     while (Date.now() - start < maxWaitMs) {
         try {
-            const res = await electron_1.net.fetch('http://localhost:3001/health');
+            const res = await electron_1.net.fetch('http://127.0.0.1:6101/health');
             if (res.ok) {
                 log(`[Backend] Health check passed after ${Date.now() - start}ms`);
                 return true;

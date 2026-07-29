@@ -15,7 +15,9 @@ export class PaymentsService {
   ) {}
 
   async create(payload: CreatePaymentDto) {
-    const sale = await this.salesRepo.findOne({ where: { id: payload.sale_id } });
+    const sale = await this.salesRepo.findOne({
+      where: { id: payload.sale_id },
+    });
     if (!sale) {
       throw new NotFoundException('Sale not found');
     }
@@ -28,8 +30,12 @@ export class PaymentsService {
       customer_id: payload.customer_id ?? sale.customer_id,
       amount_paid: amountPaid,
       discount_amount: discountAmount,
-      payment_date: payload.payment_date ? new Date(payload.payment_date) : new Date(),
-      notes: payload.notes ?? (discountAmount > 0 ? `Discount: Rs ${discountAmount}` : undefined),
+      payment_date: payload.payment_date
+        ? new Date(payload.payment_date)
+        : new Date(),
+      notes:
+        payload.notes ??
+        (discountAmount > 0 ? `Discount: Rs ${discountAmount}` : undefined),
     });
     await this.paymentsRepo.save(payment);
 
@@ -42,7 +48,9 @@ export class PaymentsService {
           ? SaleStatus.PARTIAL
           : SaleStatus.PENDING;
     sale.is_overdue =
-      sale.status !== SaleStatus.PAID && !!sale.due_date && sale.due_date < new Date();
+      sale.status !== SaleStatus.PAID &&
+      !!sale.due_date &&
+      sale.due_date < new Date();
     await this.salesRepo.save(sale);
 
     return this.salesRepo.findOne({ where: { id: sale.id } });

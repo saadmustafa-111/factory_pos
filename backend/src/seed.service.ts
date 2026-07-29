@@ -8,8 +8,14 @@ import {
   ProductUnit,
 } from './products/entities/product.entity';
 import { CementBrand } from './products/entities/cement-brand.entity';
+import { Expense } from './expenses/entities/expense.entity';
+import {
+  ManagedOption,
+  ManagedOptionScope,
+} from './options/entities/managed-option.entity';
 import { Supplier } from './suppliers/entities/supplier.entity';
 import { User } from './users/entities/user.entity';
+import { OptionsService } from './options/options.service';
 
 @Injectable()
 export class SeedService implements OnApplicationBootstrap {
@@ -22,6 +28,11 @@ export class SeedService implements OnApplicationBootstrap {
     private readonly suppliersRepo: Repository<Supplier>,
     @InjectRepository(CementBrand)
     private readonly brandsRepo: Repository<CementBrand>,
+    @InjectRepository(ManagedOption)
+    private readonly optionsRepo: Repository<ManagedOption>,
+    @InjectRepository(Expense)
+    private readonly expensesRepo: Repository<Expense>,
+    private readonly optionsService: OptionsService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -54,7 +65,10 @@ export class SeedService implements OnApplicationBootstrap {
       .createQueryBuilder()
       .update()
       .set({ unit: ProductUnit.KG })
-      .where('category = :cat AND unit = :old', { cat: ProductCategory.SARIYA, old: ProductUnit.MAUND })
+      .where('category = :cat AND unit = :old', {
+        cat: ProductCategory.SARIYA,
+        old: ProductUnit.MAUND,
+      })
       .execute();
 
     const productCount = await this.productsRepo.count();
@@ -69,24 +83,136 @@ export class SeedService implements OnApplicationBootstrap {
       await this.brandsRepo.save([
         this.brandsRepo.create({ brand_name: 'Best Way', is_active: true }),
         this.brandsRepo.create({ brand_name: 'Fauji', is_active: true }),
-        this.brandsRepo.create({ brand_name: 'Maple Leaf White', is_active: true }),
-        this.brandsRepo.create({ brand_name: 'Best Way White', is_active: true }),
+        this.brandsRepo.create({
+          brand_name: 'Maple Leaf White',
+          is_active: true,
+        }),
+        this.brandsRepo.create({
+          brand_name: 'Best Way White',
+          is_active: true,
+        }),
       ]);
     }
 
     if (productCount === 0) {
       await this.productsRepo.save([
-        this.productsRepo.create({ name: 'Sariya 3/4"', category: ProductCategory.SARIYA, type: '3/4"', unit: ProductUnit.KG, is_active: true }),
-        this.productsRepo.create({ name: 'Sariya 5/8"', category: ProductCategory.SARIYA, type: '5/8"', unit: ProductUnit.KG, is_active: true }),
-        this.productsRepo.create({ name: 'Sariya 1/2"', category: ProductCategory.SARIYA, type: '1/2"', unit: ProductUnit.KG, is_active: true }),
-        this.productsRepo.create({ name: 'Sariya 3/8"', category: ProductCategory.SARIYA, type: '3/8"', unit: ProductUnit.KG, is_active: true }),
-        this.productsRepo.create({ name: 'Sariya 1/4"', category: ProductCategory.SARIYA, type: '1/4"', unit: ProductUnit.KG, is_active: true }),
-        this.productsRepo.create({ name: 'Cement', category: ProductCategory.CEMENT, type: 'brand', unit: ProductUnit.BAG, is_active: true }),
-        this.productsRepo.create({ name: 'Ring', category: ProductCategory.RINGS, type: 'standard', unit: ProductUnit.PIECE, is_active: true }),
-        this.productsRepo.create({ name: 'Binding Wire', category: ProductCategory.WIRE, type: 'standard', unit: ProductUnit.KG, is_active: true }),
-        this.productsRepo.create({ name: 'Iron Nail', category: ProductCategory.WIRE, type: 'nail', unit: ProductUnit.KG, is_active: true }),
-        this.productsRepo.create({ name: 'Tile Bond', category: ProductCategory.WIRE, type: 'tile_bond', unit: ProductUnit.BAG, is_active: true }),
+        this.productsRepo.create({
+          name: 'Sariya 3/4"',
+          category: ProductCategory.SARIYA,
+          type: '3/4"',
+          unit: ProductUnit.KG,
+          is_active: true,
+        }),
+        this.productsRepo.create({
+          name: 'Sariya 5/8"',
+          category: ProductCategory.SARIYA,
+          type: '5/8"',
+          unit: ProductUnit.KG,
+          is_active: true,
+        }),
+        this.productsRepo.create({
+          name: 'Sariya 1/2"',
+          category: ProductCategory.SARIYA,
+          type: '1/2"',
+          unit: ProductUnit.KG,
+          is_active: true,
+        }),
+        this.productsRepo.create({
+          name: 'Sariya 3/8"',
+          category: ProductCategory.SARIYA,
+          type: '3/8"',
+          unit: ProductUnit.KG,
+          is_active: true,
+        }),
+        this.productsRepo.create({
+          name: 'Sariya 1/4"',
+          category: ProductCategory.SARIYA,
+          type: '1/4"',
+          unit: ProductUnit.KG,
+          is_active: true,
+        }),
+        this.productsRepo.create({
+          name: 'Cement',
+          category: ProductCategory.CEMENT,
+          type: 'brand',
+          unit: ProductUnit.BAG,
+          is_active: true,
+        }),
+        this.productsRepo.create({
+          name: 'Ring',
+          category: ProductCategory.RINGS,
+          type: 'standard',
+          unit: ProductUnit.PIECE,
+          is_active: true,
+        }),
+        this.productsRepo.create({
+          name: 'Binding Wire',
+          category: ProductCategory.WIRE,
+          type: 'standard',
+          unit: ProductUnit.KG,
+          is_active: true,
+        }),
+        this.productsRepo.create({
+          name: 'Iron Nail',
+          category: ProductCategory.WIRE,
+          type: 'nail',
+          unit: ProductUnit.KG,
+          is_active: true,
+        }),
+        this.productsRepo.create({
+          name: 'Tile Bond',
+          category: ProductCategory.WIRE,
+          type: 'tile_bond',
+          unit: ProductUnit.BAG,
+          is_active: true,
+        }),
       ]);
     }
+
+    await this.optionsService.ensureDefaults(ManagedOptionScope.PRODUCT_CATEGORY, [
+      ...Object.values(ProductCategory),
+      ...(await this.productsRepo
+        .createQueryBuilder('product')
+        .select('DISTINCT product.category', 'value')
+        .where("product.category IS NOT NULL AND TRIM(product.category) != ''")
+        .getRawMany<{ value: string }>())
+        .map((row) => row.value),
+    ]);
+
+    await this.optionsService.ensureDefaults(ManagedOptionScope.PRODUCT_UNIT, [
+      ...Object.values(ProductUnit),
+      ...(await this.productsRepo
+        .createQueryBuilder('product')
+        .select('DISTINCT product.unit', 'value')
+        .where("product.unit IS NOT NULL AND TRIM(product.unit) != ''")
+        .getRawMany<{ value: string }>())
+        .map((row) => row.value),
+    ]);
+
+    await this.optionsService.ensureDefaults(ManagedOptionScope.PRODUCT_TYPE, [
+      ...(await this.productsRepo
+        .createQueryBuilder('product')
+        .select('DISTINCT product.type', 'value')
+        .where("product.type IS NOT NULL AND TRIM(product.type) != ''")
+        .getRawMany<{ value: string }>())
+        .map((row) => row.value),
+      'standard',
+    ]);
+
+    await this.optionsService.ensureDefaults(ManagedOptionScope.EXPENSE_CATEGORY, [
+      'transport',
+      'labour',
+      'rent',
+      'utilities',
+      'salary',
+      'maintenance',
+      'other',
+      ...(await this.expensesRepo
+        .createQueryBuilder('expense')
+        .select('DISTINCT expense.category', 'value')
+        .where("expense.category IS NOT NULL AND TRIM(expense.category) != ''")
+        .getRawMany<{ value: string }>())
+        .map((row) => row.value),
+    ]);
   }
 }

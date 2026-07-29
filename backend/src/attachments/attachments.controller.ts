@@ -42,7 +42,8 @@ export class AttachmentsController {
     if (!file) throw new BadRequestException('No file uploaded');
     if (!entityType) throw new BadRequestException('entityType is required');
     const entityId = Number(entityIdStr);
-    if (!entityId) throw new BadRequestException('entityId must be a positive integer');
+    if (!entityId)
+      throw new BadRequestException('entityId must be a positive integer');
 
     return this.service.save(file, entityType, entityId);
   }
@@ -67,10 +68,7 @@ export class AttachmentsController {
    * Downloads / streams the actual file to the browser.
    */
   @Get(':id/file')
-  async download(
-    @Param('id', ParseIntPipe) id: number,
-    @Res() res: Response,
-  ) {
+  async download(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
     const record = await this.service.findOne(id);
     res.download(record.filePath, record.originalName);
   }

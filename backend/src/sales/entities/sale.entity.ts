@@ -74,7 +74,10 @@ export class Sale {
   @CreateDateColumn()
   created_at: Date;
 
-  @OneToMany(() => SaleItem, (item) => item.sale, { cascade: true, eager: true })
+  @OneToMany(() => SaleItem, (item) => item.sale, {
+    cascade: true,
+    eager: true,
+  })
   items: SaleItem[];
 
   @OneToMany(() => Payment, (payment) => payment.sale, {

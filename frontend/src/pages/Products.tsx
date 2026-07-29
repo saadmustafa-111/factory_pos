@@ -3,9 +3,7 @@ import { Plus, Pencil, Trash2, Tag } from 'lucide-react';
 import { api } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { localizeApiText } from '../lib/localize';
-
-const CATEGORIES = ['sariya', 'rings', 'wire', 'cement'] as const;
-const UNITS = ['kg', 'piece', 'bag', 'bundle', 'maund', 'ton'] as const;
+import { ManagedOptionsModal, type ManagedOption } from '../components/ManagedOptionsModal';
 
 interface Product {
   id: number;
@@ -44,6 +42,11 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState({ ...emptyProduct });
   const [productSaving, setProductSaving] = useState(false);
+  const [productError, setProductError] = useState('');
+  const [categoryOptions, setCategoryOptions] = useState<ManagedOption[]>([]);
+  const [typeOptions, setTypeOptions] = useState<ManagedOption[]>([]);
+  const [unitOptions, setUnitOptions] = useState<ManagedOption[]>([]);
+  const [optionsModal, setOptionsModal] = useState<null | 'product_category' | 'product_type' | 'product_unit'>(null);
 
   // Brand form state
   const [brandModal, setBrandModal] = useState(false);
@@ -69,15 +72,37 @@ export default function ProductsPage() {
 
   useEffect(() => { loadAll(); }, []);
 
+  const loadProductOptions = async () => {
+    const [categoriesRes, typesRes, unitsRes] = await Promise.all([
+      api.get<ManagedOption[]>('/options/product_category'),
+      api.get<ManagedOption[]>('/options/product_type'),
+      api.get<ManagedOption[]>('/options/product_unit'),
+    ]);
+    setCategoryOptions(categoriesRes.data);
+    setTypeOptions(typesRes.data);
+    setUnitOptions(unitsRes.data);
+  };
+
+  useEffect(() => {
+    void loadProductOptions();
+  }, []);
+
   // -------- Product handlers --------
   const openAddProduct = () => {
     setEditingProduct(null);
-    setProductForm({ ...emptyProduct });
+    setProductError('');
+    setProductForm({
+      ...emptyProduct,
+      category: categoryOptions[0]?.name || emptyProduct.category,
+      type: typeOptions[0]?.name || emptyProduct.type,
+      unit: unitOptions[0]?.name || emptyProduct.unit,
+    });
     setProductModal(true);
   };
 
   const openEditProduct = (p: Product) => {
     setEditingProduct(p);
+    setProductError('');
     setProductForm({ name: p.name, category: p.category, type: p.type, unit: p.unit, discount: p.discount ?? 0 });
     setProductModal(true);
   };
@@ -85,6 +110,7 @@ export default function ProductsPage() {
   const saveProduct = async () => {
     if (!productForm.name.trim()) return;
     setProductSaving(true);
+    setProductError('');
     try {
       if (editingProduct) {
         await api.patch(`/products/${editingProduct.id}`, productForm);
@@ -93,6 +119,8 @@ export default function ProductsPage() {
       }
       setProductModal(false);
       await loadAll();
+    } catch (err: any) {
+      setProductError(err?.response?.data?.message || 'Failed to save product');
     } finally {
       setProductSaving(false);
     }
@@ -143,15 +171,7 @@ export default function ProductsPage() {
     await loadAll();
   };
 
-  const categoryLabel = (cat: string) => {
-    const map: Record<string, string> = {
-      sariya: 'Sariya',
-      rings: 'Rings',
-      wire: 'Wire',
-      cement: 'Cement',
-    };
-    return map[cat] ?? cat;
-  };
+  const categoryLabel = (cat: string) => cat;
 
   const categoryColor = (cat: string) => {
     const map: Record<string, string> = {
@@ -164,7 +184,7 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className={`flex flex-col h-[calc(100vh-9rem)] gap-3 ${isUrdu ? 'font-urdu' : ''}`}>
+    <div className={`flex min-h-0 flex-col gap-3 ${isUrdu ? 'font-urdu' : ''}`}>
       {/* ── Products Table ── */}
       <div className="flex items-center justify-between shrink-0">
           <div>
@@ -323,10 +343,13 @@ export default function ProductsPage() {
                   onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
                   className="w-full rounded-lg border border-industrial-200 px-3 py-2 text-sm focus:border-industrial-500 focus:outline-none"
                 >
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>{categoryLabel(c)}</option>
+                  {categoryOptions.map((c) => (
+                    <option key={c.id} value={c.name}>{categoryLabel(c.name)}</option>
                   ))}
                 </select>
+                <button type="button" onClick={() => setOptionsModal('product_category')} className="mt-1 text-xs font-semibold text-accent-primary">
+                  Manage categories
+                </button>
               </div>
               {productForm.category === 'cement' && (
                 <div>
@@ -347,13 +370,18 @@ export default function ProductsPage() {
               {productForm.category !== 'cement' && (
                 <div>
                   <label className="mb-1.5 block text-sm font-semibold text-industrial-700">Type / Gauge</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. standard, 10mm, 3/8"
+                  <select
                     value={productForm.type}
                     onChange={(e) => setProductForm({ ...productForm, type: e.target.value })}
                     className="w-full rounded-lg border border-industrial-200 px-3 py-2 text-sm focus:border-industrial-500 focus:outline-none"
-                  />
+                  >
+                    {typeOptions.map((type) => (
+                      <option key={type.id} value={type.name}>{type.name}</option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={() => setOptionsModal('product_type')} className="mt-1 text-xs font-semibold text-accent-primary">
+                    Manage types
+                  </button>
                 </div>
               )}
               <div>
@@ -363,10 +391,13 @@ export default function ProductsPage() {
                   onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })}
                   className="w-full rounded-lg border border-industrial-200 px-3 py-2 text-sm focus:border-industrial-500 focus:outline-none"
                 >
-                  {UNITS.map((u) => (
-                    <option key={u} value={u}>{u}</option>
+                  {unitOptions.map((u) => (
+                    <option key={u.id} value={u.name}>{u.name}</option>
                   ))}
                 </select>
+                <button type="button" onClick={() => setOptionsModal('product_unit')} className="mt-1 text-xs font-semibold text-accent-primary">
+                  Manage units
+                </button>
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-semibold text-industrial-700">Discount (Rs per unit)</label>
@@ -381,6 +412,11 @@ export default function ProductsPage() {
                 />
                 <p className="mt-1 text-xs text-industrial-400">Default discount shown when this product is sold.</p>
               </div>
+              {productError ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                  {productError}
+                </div>
+              ) : null}
             </div>
             <div className="flex justify-end gap-3 border-t border-industrial-200 px-6 py-4">
               <button
@@ -400,6 +436,25 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
+      {optionsModal ? (
+        <ManagedOptionsModal
+          open
+          scope={optionsModal}
+          title={
+            optionsModal === 'product_category'
+              ? 'Manage Categories'
+              : optionsModal === 'product_type'
+                ? 'Manage Types'
+                : 'Manage Units'
+          }
+          createLabel="Enter a name"
+          onClose={() => setOptionsModal(null)}
+          onChanged={async () => {
+            await loadProductOptions();
+            await loadAll();
+          }}
+        />
+      ) : null}
 
       {/* ── Brand Modal ── */}
       {brandModal && (

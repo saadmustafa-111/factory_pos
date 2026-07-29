@@ -39,7 +39,9 @@ export class MillPaymentsService {
 
     const payment = this.millPaymentsRepo.create({
       ...payload,
-      payment_date: payload.payment_date ? new Date(payload.payment_date) : new Date(),
+      payment_date: payload.payment_date
+        ? new Date(payload.payment_date)
+        : new Date(),
     });
     await this.millPaymentsRepo.save(payment);
 
@@ -99,7 +101,9 @@ export class MillPaymentsService {
   }
 
   async ledgerBySupplier(supplierId: number) {
-    const supplier = await this.suppliersRepo.findOne({ where: { id: supplierId } });
+    const supplier = await this.suppliersRepo.findOne({
+      where: { id: supplierId },
+    });
     if (!supplier) throw new NotFoundException('Supplier not found');
 
     const inventoryRows = await this.inventoryRepo.find({
@@ -135,7 +139,11 @@ export class MillPaymentsService {
       balance: number;
       inventory_id?: number;
       payment_status?: string;
-      editable_type?: 'opening' | 'manual_payment' | 'mill_payment' | 'stock_in_payment';
+      editable_type?:
+        | 'opening'
+        | 'manual_payment'
+        | 'mill_payment'
+        | 'stock_in_payment';
       editable_id?: number;
     };
 
@@ -178,7 +186,7 @@ export class MillPaymentsService {
         editable_id: p.id,
       })),
       // Implicit payments: amount paid at stock-in time not covered by explicit payment records
-      ...inventoryRows
+      ...(inventoryRows
         .filter((inv) => inv.amount_paid_to_mill > 0)
         .map((inv) => {
           const explicitPaid = payments
@@ -201,7 +209,7 @@ export class MillPaymentsService {
               }
             : null;
         })
-        .filter(Boolean) as Omit<Entry, 'balance'>[],
+        .filter(Boolean) as Omit<Entry, 'balance'>[]),
       ...manualPayments.map((mp) => ({
         id: `mpay-${mp.id}`,
         date: new Date(mp.payment_date),
@@ -281,9 +289,16 @@ export class MillPaymentsService {
 
   async addOpeningBalance(
     supplierId: number,
-    body: { description: string; amount: number; balance_date: string; notes?: string },
+    body: {
+      description: string;
+      amount: number;
+      balance_date: string;
+      notes?: string;
+    },
   ) {
-    const supplier = await this.suppliersRepo.findOne({ where: { id: supplierId } });
+    const supplier = await this.suppliersRepo.findOne({
+      where: { id: supplierId },
+    });
     if (!supplier) throw new NotFoundException('Supplier not found');
 
     const record = this.openingBalancesRepo.create({
@@ -313,11 +328,16 @@ export class MillPaymentsService {
     const diff = newAmount - oldAmount;
 
     payment.amount_paid = newAmount;
-    payment.payment_date = body.payment_date ? new Date(body.payment_date) : payment.payment_date;
+    payment.payment_date = body.payment_date
+      ? new Date(body.payment_date)
+      : payment.payment_date;
     payment.notes = body.notes ?? null!;
     await this.millPaymentsRepo.save(payment);
 
-    inventory.amount_paid_to_mill = Math.max(0, Number(inventory.amount_paid_to_mill || 0) + diff);
+    inventory.amount_paid_to_mill = Math.max(
+      0,
+      Number(inventory.amount_paid_to_mill || 0) + diff,
+    );
     inventory.amount_pending_to_mill = Math.max(
       0,
       inventory.total_cost - inventory.amount_paid_to_mill,
@@ -345,7 +365,10 @@ export class MillPaymentsService {
     const payments = await this.millPaymentsRepo.find({
       where: { inventory_id: inventoryId },
     });
-    const explicitPaid = payments.reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
+    const explicitPaid = payments.reduce(
+      (sum, payment) => sum + Number(payment.amount_paid || 0),
+      0,
+    );
     const stockInPaid = Math.max(0, Number(body.amount_paid || 0));
 
     inventory.amount_paid_to_mill = explicitPaid + stockInPaid;
@@ -373,7 +396,12 @@ export class MillPaymentsService {
 
   async updateOpeningBalance(
     id: number,
-    body: { description: string; amount: number; balance_date: string; notes?: string },
+    body: {
+      description: string;
+      amount: number;
+      balance_date: string;
+      notes?: string;
+    },
   ) {
     const record = await this.openingBalancesRepo.findOne({ where: { id } });
     if (!record) throw new NotFoundException('Opening balance not found');
@@ -388,7 +416,9 @@ export class MillPaymentsService {
     supplierId: number,
     body: { description: string; amount: number; payment_date: string },
   ) {
-    const supplier = await this.suppliersRepo.findOne({ where: { id: supplierId } });
+    const supplier = await this.suppliersRepo.findOne({
+      where: { id: supplierId },
+    });
     if (!supplier) throw new NotFoundException('Supplier not found');
 
     const record = this.manualPaymentsRepo.create({

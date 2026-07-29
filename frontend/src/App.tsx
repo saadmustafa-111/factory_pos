@@ -19,6 +19,7 @@ import Settings from './pages/Settings';
 import CalculatorPage from './pages/Calculator';
 import SuppliersPage from './pages/Suppliers';
 import ProductsPage from './pages/Products';
+import Notepad from './pages/Notepad';
 
 export default function App() {
   return (
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="reports" element={<Reports />} />
         <Route path="suppliers" element={<SuppliersPage />} />
         <Route path="products" element={<ProductsPage />} />
+        <Route path="notepad" element={<Notepad />} />
         <Route path="settings" element={<Settings />} />
         <Route path="backup" element={<BackupRestore />} />
       </Route>

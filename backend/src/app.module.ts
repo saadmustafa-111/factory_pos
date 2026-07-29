@@ -38,6 +38,10 @@ import { AttachmentsModule } from './attachments/attachments.module';
 import { Attachment } from './attachments/entities/attachment.entity';
 import { ExpensesModule } from './expenses/expenses.module';
 import { Expense } from './expenses/entities/expense.entity';
+import { OptionsModule } from './options/options.module';
+import { ManagedOption } from './options/entities/managed-option.entity';
+import { NotepadEntry } from './notepad/entities/notepad-entry.entity';
+import { NotepadModule } from './notepad/notepad.module';
 
 @Module({
   imports: [
@@ -69,10 +73,12 @@ import { Expense } from './expenses/entities/expense.entity';
         AdvancePaymentItem,
         Attachment,
         Expense,
+        ManagedOption,
+        NotepadEntry,
       ],
       synchronize: true,
     }),
-    TypeOrmModule.forFeature([User, Product, Supplier, CementBrand]),
+    TypeOrmModule.forFeature([User, Product, Supplier, CementBrand, ManagedOption, Expense]),
     AuthModule,
     DatabaseInitModule,
     BackupModule,
@@ -87,6 +93,8 @@ import { Expense } from './expenses/entities/expense.entity';
     AdvancePaymentsModule,
     AttachmentsModule,
     ExpensesModule,
+    OptionsModule,
+    NotepadModule,
   ],
   providers: [SeedService],
 })

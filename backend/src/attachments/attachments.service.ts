@@ -24,6 +24,8 @@ export class AttachmentsService implements OnModuleInit {
     'inventory',
     'supplier',
     'payment',
+    'notepad',
+    'advance_payment',
   ]);
 
   private assertValidEntityType(entityType: string): void {

@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DataSource } from 'typeorm';
 import * as fs from 'fs';
@@ -78,7 +74,9 @@ export class BackupService implements OnModuleInit {
 
   // ─── CORE BACKUP LOGIC ────────────────────────────────────────────────────
 
-  async createBackup(type: 'auto' | 'manual' | 'cloud' = 'manual'): Promise<string> {
+  async createBackup(
+    type: 'auto' | 'manual' | 'cloud' = 'manual',
+  ): Promise<string> {
     // 1. Flush WAL to main DB file before copying
     try {
       await this.dataSource.query(`PRAGMA wal_checkpoint(TRUNCATE)`);
@@ -103,7 +101,10 @@ export class BackupService implements OnModuleInit {
     }
 
     // 5. Update meta
-    this.updateMeta({ lastLocalBackup: new Date().toISOString(), lastLocalBackupSize: stat.size });
+    this.updateMeta({
+      lastLocalBackup: new Date().toISOString(),
+      lastLocalBackupSize: stat.size,
+    });
 
     // 6. Upload to Google Drive if online
     await this.googleDriveService.uploadIfOnline(backupPath);
@@ -161,19 +162,29 @@ export class BackupService implements OnModuleInit {
   readMeta(): BackupMeta {
     try {
       if (fs.existsSync(this.metaPath)) {
-        return JSON.parse(fs.readFileSync(this.metaPath, 'utf-8')) as BackupMeta;
+        return JSON.parse(
+          fs.readFileSync(this.metaPath, 'utf-8'),
+        ) as BackupMeta;
       }
     } catch {
       /* ignore parse errors */
     }
-    return { lastLocalBackup: null, lastLocalBackupSize: null, lastCloudBackup: null };
+    return {
+      lastLocalBackup: null,
+      lastLocalBackupSize: null,
+      lastCloudBackup: null,
+    };
   }
 
   updateMeta(partial: Partial<BackupMeta>): void {
     const current = this.readMeta();
     const updated: BackupMeta = { ...current, ...partial };
     try {
-      fs.writeFileSync(this.metaPath, JSON.stringify(updated, null, 2), 'utf-8');
+      fs.writeFileSync(
+        this.metaPath,
+        JSON.stringify(updated, null, 2),
+        'utf-8',
+      );
     } catch (err) {
       this.logger.warn('Could not write backup-meta.json', err);
     }

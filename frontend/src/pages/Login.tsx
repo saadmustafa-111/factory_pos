@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, Eye, EyeOff, KeyRound, Lock, ShieldCheck, User, X } from 'lucide-react';
-import { api, setAuthToken } from '../lib/api';
+import { api, isBackendUnavailableError, setAuthToken } from '../lib/api';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -101,7 +101,11 @@ export default function Login() {
       setAuthToken(data.token);
       localStorage.setItem('factory_pos_user', JSON.stringify(data.user));
       navigate('/dashboard');
-    } catch {
+    } catch (err) {
+      if (isBackendUnavailableError(err)) {
+        setError('Backend is not running. Start the backend server and try again.');
+        return;
+      }
       setError('Invalid username or password');
     } finally {
       setLoading(false);

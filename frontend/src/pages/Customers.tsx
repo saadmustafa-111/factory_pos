@@ -128,7 +128,7 @@ export default function Customers() {
   ];
 
   return (
-    <div className={`flex flex-col h-[calc(100vh-9rem)] gap-3 ${isUrdu ? 'font-urdu' : ''}`}>
+    <div className={`flex min-h-0 flex-col gap-3 ${isUrdu ? 'font-urdu' : ''}`}>
 
       {/* ── Page Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">

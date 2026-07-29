@@ -18,10 +18,7 @@ export class CustomerLedgerController {
   constructor(private readonly ledgerService: CustomerLedgerService) {}
 
   @Get('ledger-list')
-  getLedgerList(
-    @Query('type') type: string,
-    @Query('status') status: string,
-  ) {
+  getLedgerList(@Query('type') type: string, @Query('status') status: string) {
     return this.ledgerService.getLedgerList(type, status);
   }
 

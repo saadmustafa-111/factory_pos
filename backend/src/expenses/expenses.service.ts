@@ -25,7 +25,7 @@ export class ExpensesService {
       description: dto.description ?? undefined,
       date,
     } as Partial<Expense>);
-    return this.repo.save(expense) as Promise<Expense>;
+    return this.repo.save(expense);
   }
 
   async findAll(from?: string, to?: string): Promise<Expense[]> {
@@ -45,7 +45,10 @@ export class ExpensesService {
     return this.findAll(today, today);
   }
 
-  async todayTotals(): Promise<{ total: number; byCategory: Record<string, number> }> {
+  async todayTotals(): Promise<{
+    total: number;
+    byCategory: Record<string, number>;
+  }> {
     const today = new Date().toISOString().slice(0, 10);
     const rows = await this.findAll(today, today);
     const byCategory: Record<string, number> = {};

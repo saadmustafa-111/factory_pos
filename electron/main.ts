@@ -136,7 +136,7 @@ async function waitForBackend(maxWaitMs = 15000): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < maxWaitMs) {
     try {
-      const res = await net.fetch('http://localhost:3001/health');
+      const res = await net.fetch('http://127.0.0.1:6101/health');
       if (res.ok) {
         log(`[Backend] Health check passed after ${Date.now() - start}ms`);
         return true;
@@ -240,4 +240,3 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-

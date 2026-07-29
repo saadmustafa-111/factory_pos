@@ -12,7 +12,16 @@ import { DailyRegisterService } from './daily-register.service';
 import { DailyRegisterController } from './daily-register.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Sale, SaleItem, Inventory, Supplier, MillPayment, Expense])],
+  imports: [
+    TypeOrmModule.forFeature([
+      Sale,
+      SaleItem,
+      Inventory,
+      Supplier,
+      MillPayment,
+      Expense,
+    ]),
+  ],
   controllers: [ReportsController, DailyRegisterController],
   providers: [ReportsService, DailyRegisterService],
 })

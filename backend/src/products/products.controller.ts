@@ -24,7 +24,16 @@ export class ProductsController {
   }
 
   @Post('products')
-  addProduct(@Body() body: { name: string; category: string; type: string; unit: string; discount?: number }) {
+  addProduct(
+    @Body()
+    body: {
+      name: string;
+      category: string;
+      type: string;
+      unit: string;
+      discount?: number;
+    },
+  ) {
     return this.productsService.addProduct(body);
   }
 
@@ -39,7 +48,14 @@ export class ProductsController {
   @Patch('products/:id')
   updateProduct(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { name?: string; category?: string; type?: string; unit?: string; discount?: number },
+    @Body()
+    body: {
+      name?: string;
+      category?: string;
+      type?: string;
+      unit?: string;
+      discount?: number;
+    },
   ) {
     return this.productsService.updateProduct(id, body);
   }

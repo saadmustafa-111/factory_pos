@@ -134,7 +134,9 @@ export class DailyRegisterService {
       ensure(row.date).net_profit = Number(row.profit);
     }
 
-    return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
+    return Array.from(map.values()).sort((a, b) =>
+      b.date.localeCompare(a.date),
+    );
   }
 
   // ─── DAILY DETAIL ─────────────────────────────────────────────────────────
@@ -204,8 +206,7 @@ export class DailyRegisterService {
       total_amount: Number(s.total_amount),
       paid_amount: Number(s.paid_amount),
       remaining_amount: Number(s.pending_amount),
-      payment_type:
-        Number(s.pending_amount) <= 0 ? 'cash' : 'credit',
+      payment_type: Number(s.pending_amount) <= 0 ? 'cash' : 'credit',
       status: s.is_overdue ? 'overdue' : s.status,
     }));
 
@@ -259,14 +260,28 @@ export class DailyRegisterService {
     ];
 
     // Summary totals
-    interface FormattedSale { total_amount: number; paid_amount: number; remaining_amount: number; payment_type: string; }
+    interface FormattedSale {
+      total_amount: number;
+      paid_amount: number;
+      remaining_amount: number;
+      payment_type: string;
+    }
     const fSales = formattedSales as FormattedSale[];
-    const totalSales = fSales.reduce((s: number, r: FormattedSale) => s + r.total_amount, 0);
+    const totalSales = fSales.reduce(
+      (s: number, r: FormattedSale) => s + r.total_amount,
+      0,
+    );
     const cashCollected = fSales
       .filter((s: FormattedSale) => s.payment_type === 'cash')
       .reduce((s: number, r: FormattedSale) => s + r.paid_amount, 0);
-    const creditGiven = fSales.reduce((s: number, r: FormattedSale) => s + r.remaining_amount, 0);
-    const stockValue = (stock as { total_value: unknown }[]).reduce((s: number, r: { total_value: unknown }) => s + Number(r.total_value), 0);
+    const creditGiven = fSales.reduce(
+      (s: number, r: FormattedSale) => s + r.remaining_amount,
+      0,
+    );
+    const stockValue = (stock as { total_value: unknown }[]).reduce(
+      (s: number, r: { total_value: unknown }) => s + Number(r.total_value),
+      0,
+    );
 
     const profitRows = await this.dataSource.query(
       `SELECT COALESCE(SUM((si.sale_price_per_unit - si.purchase_price_per_unit) * si.quantity), 0) as profit

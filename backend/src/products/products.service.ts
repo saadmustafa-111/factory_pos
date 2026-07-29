@@ -25,7 +25,12 @@ export class ProductsService {
     return this.productsRepo.find({ order: { id: 'ASC' } });
   }
 
-  async addProduct(body: { name: string; category: string; type: string; unit: string }) {
+  async addProduct(body: {
+    name: string;
+    category: string;
+    type: string;
+    unit: string;
+  }) {
     return this.productsRepo.save(
       this.productsRepo.create({
         name: body.name,
@@ -44,7 +49,10 @@ export class ProductsService {
     return this.productsRepo.save(product);
   }
 
-  async updateProduct(id: number, body: { name?: string; category?: string; type?: string; unit?: string }) {
+  async updateProduct(
+    id: number,
+    body: { name?: string; category?: string; type?: string; unit?: string },
+  ) {
     const product = await this.productsRepo.findOne({ where: { id } });
     if (!product) throw new NotFoundException('Product not found');
     if (body.name !== undefined) product.name = body.name;
@@ -54,11 +62,15 @@ export class ProductsService {
     return this.productsRepo.save(product);
   }
 
-  async updateCementBrand(id: number, payload: { brand_name?: string; supplier_id?: number }) {
+  async updateCementBrand(
+    id: number,
+    payload: { brand_name?: string; supplier_id?: number },
+  ) {
     const brand = await this.brandsRepo.findOne({ where: { id } });
     if (!brand) throw new NotFoundException('Brand not found');
     if (payload.brand_name !== undefined) brand.brand_name = payload.brand_name;
-    if (payload.supplier_id !== undefined) brand.supplier_id = payload.supplier_id;
+    if (payload.supplier_id !== undefined)
+      brand.supplier_id = payload.supplier_id;
     return this.brandsRepo.save(brand);
   }
 

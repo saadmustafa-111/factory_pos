@@ -673,6 +673,11 @@ export default function CustomerLedger() {
                       <Pencil className="h-4 w-4" />
                       Edit Profile
                     </button>
+                    <AttachmentManager
+                      entityType="customer"
+                      entityId={ledger.customer.id}
+                      label={ledger.customer.name}
+                    />
                     {ledger.balance > 0 && (
                       <button
                         onClick={() => {

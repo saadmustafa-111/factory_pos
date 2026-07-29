@@ -8,10 +8,7 @@ export class DailyRegisterController {
   constructor(private readonly dailyRegisterService: DailyRegisterService) {}
 
   @Get('daily-register')
-  getDailyRegister(
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-  ) {
+  getDailyRegister(@Query('from') from?: string, @Query('to') to?: string) {
     return this.dailyRegisterService.getDailyRegister(from, to);
   }
 

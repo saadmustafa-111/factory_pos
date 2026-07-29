@@ -44,7 +44,10 @@ export class ExpensesController {
 
   /** PATCH /expenses/:id */
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: Partial<CreateExpenseDto>) {
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: Partial<CreateExpenseDto>,
+  ) {
     return this.service.update(id, dto);
   }
 

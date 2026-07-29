@@ -534,6 +534,11 @@ export default function MillLedger() {
                     {tableHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                     {tableHidden ? 'Show' : 'Hide'}
                   </button>
+                  <AttachmentManager
+                    entityType="supplier"
+                    entityId={ledger.supplier.id}
+                    label={ledger.supplier.name}
+                  />
                   <button
                     onClick={() =>
                       downloadSupplierLedgerPdf({

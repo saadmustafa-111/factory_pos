@@ -1,7 +1,14 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { AdvancePayment, AdvancePaymentStatus } from './entities/advance-payment.entity';
+import {
+  AdvancePayment,
+  AdvancePaymentStatus,
+} from './entities/advance-payment.entity';
 import { AdvancePaymentItem } from './entities/advance-payment-item.entity';
 import { Customer } from '../customers/entities/customer.entity';
 import { Sale, SaleStatus } from '../sales/entities/sale.entity';
@@ -37,7 +44,9 @@ export class AdvancePaymentsService {
       .where('inventory.product_id = :productId', { productId });
 
     if (cementBrandId) {
-      qb.andWhere('inventory.cement_brand_id = :cementBrandId', { cementBrandId });
+      qb.andWhere('inventory.cement_brand_id = :cementBrandId', {
+        cementBrandId,
+      });
     }
 
     const row = await qb.getRawOne<{ avg: string }>();
@@ -113,7 +122,9 @@ export class AdvancePaymentsService {
     const advancePayment = await this.findOne(id);
 
     if (advancePayment.status === AdvancePaymentStatus.COMPLETED) {
-      throw new BadRequestException('This advance payment has already been completed');
+      throw new BadRequestException(
+        'This advance payment has already been completed',
+      );
     }
 
     if (advancePayment.status === AdvancePaymentStatus.CANCELLED) {
@@ -123,9 +134,13 @@ export class AdvancePaymentsService {
     // Prepare sale items with purchase prices
     const saleItems = await Promise.all(
       payload.items.map(async (pickupItem) => {
-        const advItem = advancePayment.items.find((i) => i.id === pickupItem.advance_payment_item_id);
+        const advItem = advancePayment.items.find(
+          (i) => i.id === pickupItem.advance_payment_item_id,
+        );
         if (!advItem) {
-          throw new BadRequestException(`Invalid item ID: ${pickupItem.advance_payment_item_id}`);
+          throw new BadRequestException(
+            `Invalid item ID: ${pickupItem.advance_payment_item_id}`,
+          );
         }
 
         const remainingQty = advItem.quantity - advItem.quantity_picked;
@@ -153,8 +168,12 @@ export class AdvancePaymentsService {
       }),
     );
 
-    const saleTotal = saleItems.reduce((sum, item) => sum + item.total_price, 0);
-    const paidAmount = advancePayment.paid_amount + (payload.additional_payment ?? 0);
+    const saleTotal = saleItems.reduce(
+      (sum, item) => sum + item.total_price,
+      0,
+    );
+    const paidAmount =
+      advancePayment.paid_amount + (payload.additional_payment ?? 0);
     const pendingAmount = Math.max(0, saleTotal - paidAmount);
 
     const saleStatus =
@@ -202,11 +221,15 @@ export class AdvancePaymentsService {
     const payment = await this.findOne(id);
 
     if (payment.status === AdvancePaymentStatus.COMPLETED) {
-      throw new BadRequestException('Cannot cancel a completed advance payment');
+      throw new BadRequestException(
+        'Cannot cancel a completed advance payment',
+      );
     }
 
     if (payment.status === AdvancePaymentStatus.PARTIAL) {
-      throw new BadRequestException('Cannot cancel a partially picked up advance payment');
+      throw new BadRequestException(
+        'Cannot cancel a partially picked up advance payment',
+      );
     }
 
     payment.status = AdvancePaymentStatus.CANCELLED;

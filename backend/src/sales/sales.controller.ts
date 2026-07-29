@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -24,7 +25,10 @@ export class SalesController {
   }
 
   @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() payload: CreateSaleDto) {
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: CreateSaleDto,
+  ) {
     return this.salesService.update(id, payload);
   }
 
@@ -36,5 +40,10 @@ export class SalesController {
   @Get(':id')
   detail(@Param('id', ParseIntPipe) id: number) {
     return this.salesService.findOne(id);
+  }
+
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.salesService.remove(id);
   }
 }

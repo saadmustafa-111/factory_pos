@@ -28,6 +28,7 @@ interface CustomerFormModalProps {
 
 export function CustomerFormModal({ open, onClose, onSuccess, editCustomer }: CustomerFormModalProps) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(editCustomer?.image_url || null);
   const [form, setForm] = useState({
     name: editCustomer?.name || '',
@@ -45,6 +46,7 @@ export function CustomerFormModal({ open, onClose, onSuccess, editCustomer }: Cu
 
   useEffect(() => {
     if (!open) return;
+    setError('');
     setForm({
       name: editCustomer?.name || '',
       phone: editCustomer?.phone || '',
@@ -73,12 +75,23 @@ export function CustomerFormModal({ open, onClose, onSuccess, editCustomer }: Cu
   };
 
   const handleSubmit = async () => {
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || loading) return;
+    setError('');
     setLoading(true);
     try {
       const payload = {
-        ...form,
-        image_url: imagePreview || undefined,
+        name: form.name.trim(),
+        phone: form.phone.trim(),
+        address: form.address.trim(),
+        notes: form.notes.trim(),
+        has_vehicle: form.has_vehicle,
+        vehicle_number: form.vehicle_number.trim(),
+        cnic: form.cnic.trim(),
+        relation_with_me: form.relation_with_me.trim(),
+        gmail: form.gmail.trim(),
+        facebook_link: form.facebook_link.trim(),
+        social_link: form.social_link.trim(),
+        image_url: imagePreview ?? '',
       };
       
       if (editCustomer) {
@@ -103,14 +116,15 @@ export function CustomerFormModal({ open, onClose, onSuccess, editCustomer }: Cu
         social_link: '',
       });
       setImagePreview(null);
-    } catch (err) {
-      console.error('Failed to save customer:', err);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to save customer');
     } finally {
       setLoading(false);
     }
   };
 
   const handleClose = () => {
+    setError('');
     setForm({
       name: '',
       phone: '',
@@ -131,6 +145,11 @@ export function CustomerFormModal({ open, onClose, onSuccess, editCustomer }: Cu
   return (
     <Modal open={open} title={editCustomer ? 'Edit Customer' : 'Add New Customer'} onClose={handleClose}>
       <div className="space-y-6">
+        {error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            {error}
+          </div>
+        ) : null}
         {/* Profile Image Section */}
         <div className="flex flex-col items-center">
           <div className="relative">
@@ -309,8 +328,8 @@ export function CustomerFormModal({ open, onClose, onSuccess, editCustomer }: Cu
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-3 pt-2">
-          <Button variant="outline" onClick={handleClose}>
+        <div className="sticky bottom-0 flex justify-end gap-3 border-t border-industrial-100 bg-white/95 pt-4 backdrop-blur">
+          <Button variant="outline" onClick={handleClose} disabled={loading}>
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={loading || !form.name.trim()}>

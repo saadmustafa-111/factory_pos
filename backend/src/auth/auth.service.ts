@@ -113,7 +113,10 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    const ok = await bcrypt.compare(payload.currentPassword, user.password_hash);
+    const ok = await bcrypt.compare(
+      payload.currentPassword,
+      user.password_hash,
+    );
     if (!ok) {
       throw new UnauthorizedException('Current password is invalid');
     }
@@ -126,7 +129,10 @@ export class AuthService {
   async setRecoveryPin(userId: number, payload: SetRecoveryPinDto) {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) throw new UnauthorizedException('User not found');
-    const ok = await bcrypt.compare(payload.currentPassword, user.password_hash);
+    const ok = await bcrypt.compare(
+      payload.currentPassword,
+      user.password_hash,
+    );
     if (!ok) throw new UnauthorizedException('Current password is incorrect');
     user.recovery_pin_hash = await bcrypt.hash(payload.recoveryPin, 10);
     await this.usersRepo.save(user);
@@ -135,14 +141,15 @@ export class AuthService {
 
   async hasRecoveryPin(userId: number) {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
-    return { hasPin: !!(user?.recovery_pin_hash) };
+    return { hasPin: !!user?.recovery_pin_hash };
   }
 
   async verifyRecoveryPin(username: string, recoveryPin: string) {
     checkLoginRateLimit(`pin:${username}`);
     const user = await this.usersRepo.findOne({ where: { username } });
     if (!user) throw new BadRequestException('Username not found');
-    if (!user.recovery_pin_hash) throw new BadRequestException('No recovery PIN set for this account.');
+    if (!user.recovery_pin_hash)
+      throw new BadRequestException('No recovery PIN set for this account.');
     const ok = await bcrypt.compare(recoveryPin, user.recovery_pin_hash);
     if (!ok) {
       recordLoginFailure(`pin:${username}`);
@@ -154,15 +161,24 @@ export class AuthService {
 
   async resetPasswordWithPin(payload: ResetPasswordDto) {
     checkLoginRateLimit(`pin:${payload.username}`);
-    const user = await this.usersRepo.findOne({ where: { username: payload.username } });
+    const user = await this.usersRepo.findOne({
+      where: { username: payload.username },
+    });
     if (!user) throw new BadRequestException('Username not found');
-    if (!user.recovery_pin_hash) throw new BadRequestException('No recovery PIN set for this account. Please contact your system administrator.');
-    const ok = await bcrypt.compare(payload.recoveryPin, user.recovery_pin_hash);
+    if (!user.recovery_pin_hash)
+      throw new BadRequestException(
+        'No recovery PIN set for this account. Please contact your system administrator.',
+      );
+    const ok = await bcrypt.compare(
+      payload.recoveryPin,
+      user.recovery_pin_hash,
+    );
     if (!ok) {
       recordLoginFailure(`pin:${payload.username}`);
       throw new BadRequestException('Incorrect recovery PIN');
     }
-    if (payload.newPassword.length < 6) throw new BadRequestException('Password must be at least 6 characters');
+    if (payload.newPassword.length < 6)
+      throw new BadRequestException('Password must be at least 6 characters');
     clearLoginFailures(`pin:${payload.username}`);
     user.password_hash = await bcrypt.hash(payload.newPassword, 10);
     await this.usersRepo.save(user);

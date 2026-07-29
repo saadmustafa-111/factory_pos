@@ -1,4 +1,10 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { CementBrand } from '../../products/entities/cement-brand.entity';
 import { Product } from '../../products/entities/product.entity';
 import { Sale } from './sale.entity';

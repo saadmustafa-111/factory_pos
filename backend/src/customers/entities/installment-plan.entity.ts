@@ -53,7 +53,9 @@ export class InstallmentPlan {
   @Column({ nullable: true })
   notes: string;
 
-  @OneToMany(() => InstallmentDue, (due) => due.installment_plan, { cascade: true })
+  @OneToMany(() => InstallmentDue, (due) => due.installment_plan, {
+    cascade: true,
+  })
   installment_dues: InstallmentDue[];
 
   @CreateDateColumn()

@@ -18,6 +18,10 @@ export class UpdateCustomerDto {
   notes?: string;
 
   @IsOptional()
+  @IsBoolean()
+  has_vehicle?: boolean;
+
+  @IsOptional()
   @IsString()
   vehicle_number?: string;
 

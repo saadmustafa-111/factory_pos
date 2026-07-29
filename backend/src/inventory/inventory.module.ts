@@ -8,7 +8,9 @@ import { Inventory } from './entities/inventory.entity';
 import { InventoryService } from './inventory.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Inventory, SaleItem, Supplier, CementBrand])],
+  imports: [
+    TypeOrmModule.forFeature([Inventory, SaleItem, Supplier, CementBrand]),
+  ],
   controllers: [InventoryController],
   providers: [InventoryService],
   exports: [InventoryService],

@@ -9,14 +9,13 @@ import { Modal } from '../components/ui/modal';
 import { api } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { fmtCurrency } from '../lib/utils';
+import { ManagedOptionsModal, type ManagedOption } from '../components/ManagedOptionsModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Category = 'transport' | 'labour' | 'rent' | 'utilities' | 'salary' | 'maintenance' | 'other';
-
 interface Expense {
   id: number;
-  category: Category;
+  category: string;
   amount: number;
   description: string | null;
   date: string;
@@ -25,7 +24,7 @@ interface Expense {
 
 // ─── Category config ─────────────────────────────────────────────────────────
 
-const CATEGORY_META: Record<Category, { color: string; bg: string; border: string; icon: any }> = {
+const CATEGORY_META: Record<string, { color: string; bg: string; border: string; icon: any }> = {
   transport:   { color: 'text-blue-700',   bg: 'bg-blue-50',   border: 'border-blue-200',   icon: Truck },
   labour:      { color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200', icon: HardHat },
   rent:        { color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200', icon: Home },
@@ -35,7 +34,7 @@ const CATEGORY_META: Record<Category, { color: string; bg: string; border: strin
   other:       { color: 'text-industrial-700',   bg: 'bg-industrial-50',   border: 'border-industrial-200',   icon: ReceiptText },
 };
 
-const CATEGORIES: Category[] = ['transport', 'labour', 'rent', 'utilities', 'salary', 'maintenance', 'other'];
+const DEFAULT_CATEGORIES = ['transport', 'labour', 'rent', 'utilities', 'salary', 'maintenance', 'other'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -47,7 +46,7 @@ function monthStart() {
 
 // ─── Empty form ───────────────────────────────────────────────────────────────
 
-const emptyForm = (): { category: Category; amount: string; description: string; date: string } => ({
+const emptyForm = (): { category: string; amount: string; description: string; date: string } => ({
   category: 'transport', amount: '', description: '', date: todayStr(),
 });
 
@@ -68,6 +67,9 @@ export default function Expenses() {
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [categoryOptions, setCategoryOptions] = useState<ManagedOption[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false);
 
   // ── load ─────────────────────────────────────────────────────────────────
 
@@ -82,6 +84,15 @@ export default function Expenses() {
   };
 
   useEffect(() => { load(); }, [from, to]);
+
+  const loadCategories = async () => {
+    const { data } = await api.get<ManagedOption[]>('/options/expense_category');
+    setCategoryOptions(data);
+  };
+
+  useEffect(() => {
+    void loadCategories();
+  }, []);
 
   // ── summary ──────────────────────────────────────────────────────────────
 
@@ -99,7 +110,7 @@ export default function Expenses() {
 
   const grouped = useMemo(() => {
     const map = new Map<string, Expense[]>();
-    for (const e of expenses) {
+    for (const e of expenses.filter((item) => categoryFilter === 'all' || item.category === categoryFilter)) {
       const d = e.date.slice(0, 10);
       if (!map.has(d)) map.set(d, []);
       map.get(d)!.push(e);
@@ -111,7 +122,10 @@ export default function Expenses() {
 
   const openAdd = () => {
     setEditing(null);
-    setForm(emptyForm());
+    setForm({
+      ...emptyForm(),
+      category: categoryOptions[0]?.name || 'transport',
+    });
     setFormError('');
     setModalOpen(true);
   };
@@ -164,13 +178,13 @@ export default function Expenses() {
 
   // ── Category label helper ─────────────────────────────────────────────────
 
-  const catLabel = (c: Category) => {
-    const map: Record<Category, string> = {
+  const catLabel = (c: string) => {
+    const map: Record<string, string> = {
       transport: t.catTransport, labour: t.catLabour, rent: t.catRent,
       utilities: t.catUtilities, salary: t.catSalary,
       maintenance: t.catMaintenance, other: t.catOther,
     };
-    return map[c] ?? c;
+    return map[c] ?? c ?? 'Uncategorized';
   };
 
   // ── Quick date filters ────────────────────────────────────────────────────
@@ -189,7 +203,7 @@ export default function Expenses() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className={`flex flex-col h-[calc(100vh-9rem)] gap-3 ${isUrdu ? 'font-urdu' : ''}`}>
+    <div className={`flex min-h-0 flex-col gap-3 ${isUrdu ? 'font-urdu' : ''}`}>
 
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
@@ -221,12 +235,22 @@ export default function Expenses() {
           <span className="text-industrial-400">—</span>
           <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" />
         </div>
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className="h-11 rounded-lg border-2 border-industrial-300 bg-white px-4 text-sm font-medium"
+        >
+          <option value="all">All Categories</option>
+          {categoryOptions.map((category) => (
+            <option key={category.id} value={category.name}>{catLabel(category.name)}</option>
+          ))}
+        </select>
       </div>
 
       {/* Summary cards */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 shrink-0">
-        {CATEGORIES.map((cat) => {
-          const meta = CATEGORY_META[cat];
+        {(categoryOptions.length ? categoryOptions.map((item) => item.name) : DEFAULT_CATEGORIES).map((cat) => {
+          const meta = CATEGORY_META[cat] ?? CATEGORY_META.other;
           const Icon = meta.icon;
           const amt = summary.byCategory[cat] ?? 0;
           return (
@@ -280,7 +304,7 @@ export default function Expenses() {
               {/* Rows */}
               <div className="divide-y divide-industrial-100">
                 {items.map((exp) => {
-                  const meta = CATEGORY_META[exp.category];
+                  const meta = CATEGORY_META[exp.category] ?? CATEGORY_META.other;
                   const Icon = meta.icon;
                   return (
                     <div key={exp.id} className="flex items-center gap-4 px-6 py-4 hover:bg-industrial-50 transition-colors">
@@ -293,7 +317,7 @@ export default function Expenses() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={`text-xs font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${meta.border} ${meta.bg} ${meta.color}`}>
-                            {catLabel(exp.category)}
+                            {catLabel(exp.category || 'Uncategorized')}
                           </span>
                           {exp.description && (
                             <span className="text-sm text-industrial-700 font-medium truncate">{exp.description}</span>
@@ -344,9 +368,14 @@ export default function Expenses() {
           {/* Category picker */}
           <div>
             <label className="mb-2 block text-sm font-bold text-industrial-700">{t.expenseCategory}</label>
+            <div className="mb-2 flex items-center justify-end">
+              <button type="button" onClick={() => setManageCategoriesOpen(true)} className="text-xs font-semibold text-accent-primary">
+                Manage categories
+              </button>
+            </div>
             <div className="grid grid-cols-4 gap-2">
-              {CATEGORIES.map((cat) => {
-                const meta = CATEGORY_META[cat];
+              {(categoryOptions.length ? categoryOptions.map((item) => item.name) : DEFAULT_CATEGORIES).map((cat) => {
+                const meta = CATEGORY_META[cat] ?? CATEGORY_META.other;
                 const Icon = meta.icon;
                 const active = form.category === cat;
                 return (
@@ -422,6 +451,17 @@ export default function Expenses() {
           </div>
         </div>
       </Modal>
+      <ManagedOptionsModal
+        open={manageCategoriesOpen}
+        scope="expense_category"
+        title="Manage Expense Categories"
+        createLabel="Enter category name"
+        onClose={() => setManageCategoriesOpen(false)}
+        onChanged={async () => {
+          await loadCategories();
+          await load();
+        }}
+      />
     </div>
   );
 }

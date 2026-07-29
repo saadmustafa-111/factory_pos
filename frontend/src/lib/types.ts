@@ -3,9 +3,9 @@ export type SaleStatus = 'paid' | 'partial' | 'pending';
 export interface Product {
   id: number;
   name: string;
-  category: 'sariya' | 'rings' | 'wire' | 'cement';
-  type: 'thin' | 'thick' | 'brand_name' | 'standard';
-  unit: 'kg' | 'piece' | 'bag' | 'bundle' | 'maund' | 'ton';
+  category: string;
+  type: string;
+  unit: string;
   discount?: number;
 }
 

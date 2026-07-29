@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
@@ -13,16 +17,25 @@ export class SuppliersService {
   ) {}
 
   findAll() {
-    return this.suppliersRepo.find({ where: { is_active: true }, order: { name: 'ASC' } });
+    return this.suppliersRepo.find({
+      where: { is_active: true },
+      order: { name: 'ASC' },
+    });
   }
 
   async create(payload: CreateSupplierDto) {
-    const existing = await this.suppliersRepo.findOne({ where: { name: payload.name, is_active: true } });
+    const existing = await this.suppliersRepo.findOne({
+      where: { name: payload.name, is_active: true },
+    });
     if (existing) {
-      throw new ConflictException(`A supplier named "${payload.name}" already exists.`);
+      throw new ConflictException(
+        `A supplier named "${payload.name}" already exists.`,
+      );
     }
     // Reuse soft-deleted row if name matches
-    const deleted = await this.suppliersRepo.findOne({ where: { name: payload.name, is_active: false } });
+    const deleted = await this.suppliersRepo.findOne({
+      where: { name: payload.name, is_active: false },
+    });
     if (deleted) {
       Object.assign(deleted, payload, { is_active: true });
       return this.suppliersRepo.save(deleted);
@@ -34,9 +47,13 @@ export class SuppliersService {
     const supplier = await this.suppliersRepo.findOne({ where: { id } });
     if (!supplier) throw new NotFoundException('Supplier not found');
     if (payload.name && payload.name !== supplier.name) {
-      const existing = await this.suppliersRepo.findOne({ where: { name: payload.name, is_active: true } });
+      const existing = await this.suppliersRepo.findOne({
+        where: { name: payload.name, is_active: true },
+      });
       if (existing) {
-        throw new ConflictException(`A supplier named "${payload.name}" already exists.`);
+        throw new ConflictException(
+          `A supplier named "${payload.name}" already exists.`,
+        );
       }
     }
     Object.assign(supplier, payload);

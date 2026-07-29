@@ -14,14 +14,18 @@ export class MillPayment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Supplier, (supplier) => supplier.millPayments, { eager: true })
+  @ManyToOne(() => Supplier, (supplier) => supplier.millPayments, {
+    eager: true,
+  })
   @JoinColumn({ name: 'supplier_id' })
   supplier: Supplier;
 
   @Column()
   supplier_id: number;
 
-  @ManyToOne(() => Inventory, (inventory) => inventory.millPayments, { eager: true })
+  @ManyToOne(() => Inventory, (inventory) => inventory.millPayments, {
+    eager: true,
+  })
   @JoinColumn({ name: 'inventory_id' })
   inventory: Inventory;
 

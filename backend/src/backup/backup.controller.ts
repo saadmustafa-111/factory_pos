@@ -93,7 +93,8 @@ export class BackupController {
     res.setHeader('Cache-Control', 'no-store, max-age=0');
     res.setHeader('Pragma', 'no-cache');
     try {
-      if (!code) throw new BadRequestException('Missing Google authorization code');
+      if (!code)
+        throw new BadRequestException('Missing Google authorization code');
       await this.googleDriveService.handleOAuthCallback(code);
       // Return a plain HTML page the OAuth window can show.
       // Replace the browser URL so Google's one-time code is not left visible.

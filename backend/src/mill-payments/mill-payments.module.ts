@@ -9,7 +9,15 @@ import { SupplierOpeningBalance } from './entities/supplier-opening-balance.enti
 import { SupplierManualPayment } from './entities/supplier-manual-payment.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([MillPayment, Inventory, Supplier, SupplierOpeningBalance, SupplierManualPayment])],
+  imports: [
+    TypeOrmModule.forFeature([
+      MillPayment,
+      Inventory,
+      Supplier,
+      SupplierOpeningBalance,
+      SupplierManualPayment,
+    ]),
+  ],
   controllers: [MillPaymentsController],
   providers: [MillPaymentsService],
 })

@@ -99,6 +99,7 @@ export default function Sales() {
   const [historyPageSize, setHistoryPageSize] = useState(10);
   const [newSaleOpen, setNewSaleOpen] = useState(false);
   const [editingSaleId, setEditingSaleId] = useState<number | null>(null);
+  const [deletingSaleId, setDeletingSaleId] = useState<number | null>(null);
 
   const load = async () => {
     const [p, b, s, c] = await Promise.all([
@@ -357,6 +358,29 @@ export default function Sales() {
     }
   };
 
+  const deleteSale = async (saleId: number) => {
+    if (deletingSaleId) return;
+    const confirmed = window.confirm(
+      isUrdu
+        ? `کیا آپ واقعی سیل #${saleId} حذف کرنا چاہتے ہیں؟ یہ عمل واپس نہیں ہوگا۔`
+        : `Delete sale #${saleId}? This will permanently delete the sale.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingSaleId(saleId);
+    setValidationError('');
+    try {
+      await api.delete(`/sales/${saleId}`);
+      setSavedMsg(isUrdu ? `سیل #${saleId} حذف کر دی گئی` : `Sale #${saleId} deleted successfully`);
+      setTimeout(() => setSavedMsg(''), 6000);
+      await load();
+    } catch (err: any) {
+      setValidationError(err?.response?.data?.message || 'Failed to delete sale.');
+    } finally {
+      setDeletingSaleId(null);
+    }
+  };
+
   const shareOnWhatsApp = (receipt: ReceiptData, phone?: string) => {
     const date = new Date(receipt.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
     const itemLines = receipt.items.map(i => {
@@ -435,7 +459,7 @@ export default function Sales() {
   const sc: any = { paid: 'bg-green-100 text-green-800 border border-green-200', partial: 'bg-accent-secondary/10 text-accent-secondary border border-accent-secondary/20', pending: 'bg-industrial-100 text-industrial-700 border border-industrial-300', overdue: 'bg-accent-danger/10 text-accent-danger border border-accent-danger/20' };
 
   return (
-    <div className={`flex flex-col h-[calc(100vh-9rem)] gap-3 ${isUrdu ? 'font-urdu' : ''}`}>
+    <div className={`flex min-h-0 flex-col gap-3 ${isUrdu ? 'font-urdu' : ''}`}>
       {/* ── Page Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
         <div>
@@ -607,6 +631,14 @@ export default function Sales() {
                             className="flex h-7 w-7 items-center justify-center rounded-lg text-industrial-500 hover:bg-industrial-100 hover:text-industrial-800 transition-colors"
                             title="Download PDF">
                             <FileDown size={13} />
+                          </button>
+                          <button
+                            onClick={() => deleteSale(s.id)}
+                            disabled={deletingSaleId === s.id}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                            title="Delete Sale"
+                          >
+                            <Trash2 size={13} className={deletingSaleId === s.id ? 'animate-pulse' : ''} />
                           </button>
                           <AttachmentManager entityType="sale" entityId={s.id} label={`Sale #${s.id}`} />
                         </div>

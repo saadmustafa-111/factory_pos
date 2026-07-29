@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { fmtCurrency } from '../lib/utils';
 import { Modal } from '../components/ui/modal';
+import { AttachmentManager } from '../components/AttachmentManager';
 
 export interface AdvancePaymentItem {
   id: number;
@@ -298,17 +299,24 @@ export default function AdvancePayments() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      {(adv.status === 'pending' || adv.status === 'partial') && (
-                        <button
-                          onClick={() => handleOpenPickup(adv)}
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                        >
-                          {t.processPickup}
-                        </button>
-                      )}
-                      {adv.status === 'completed' && adv.converted_sale_id && (
-                        <span className="text-green-600 text-sm">✓ Sale #{adv.converted_sale_id}</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {(adv.status === 'pending' || adv.status === 'partial') && (
+                          <button
+                            onClick={() => handleOpenPickup(adv)}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            {t.processPickup}
+                          </button>
+                        )}
+                        {adv.status === 'completed' && adv.converted_sale_id && (
+                          <span className="text-green-600 text-sm">✓ Sale #{adv.converted_sale_id}</span>
+                        )}
+                        <AttachmentManager
+                          entityType="advance_payment"
+                          entityId={adv.id}
+                          label={`Advance Payment #${adv.id}`}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))

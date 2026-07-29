@@ -16,7 +16,9 @@ export class CementBrand {
   @Column({ unique: true })
   brand_name: string;
 
-  @ManyToOne(() => Supplier, (supplier) => supplier.cementBrands, { eager: true })
+  @ManyToOne(() => Supplier, (supplier) => supplier.cementBrands, {
+    eager: true,
+  })
   @JoinColumn({ name: 'supplier_id' })
   supplier: Supplier;
 

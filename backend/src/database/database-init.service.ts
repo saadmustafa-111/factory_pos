@@ -54,7 +54,9 @@ export class DatabaseInitService implements OnApplicationBootstrap {
         }
       }
       if (needsMigration.length > 0) {
-        this.logger.log(`Migrated manual credit paid_amount for ${needsMigration.length} customer(s)`);
+        this.logger.log(
+          `Migrated manual credit paid_amount for ${needsMigration.length} customer(s)`,
+        );
       }
     } catch (err) {
       this.logger.error('Failed to migrate manual credit paid_amount', err);

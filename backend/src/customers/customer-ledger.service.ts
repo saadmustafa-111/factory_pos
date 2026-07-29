@@ -69,7 +69,9 @@ export class CustomerLedgerService {
   // ─── HELPERS ─────────────────────────────────────────────────────────────
 
   private async getOrCreateLedger(customerId: number): Promise<CustomerLedger> {
-    let ledger = await this.ledgerRepo.findOne({ where: { customer_id: customerId } });
+    let ledger = await this.ledgerRepo.findOne({
+      where: { customer_id: customerId },
+    });
     if (!ledger) {
       ledger = this.ledgerRepo.create({ customer_id: customerId });
       ledger = await this.ledgerRepo.save(ledger);
@@ -81,7 +83,9 @@ export class CustomerLedgerService {
     return (advance.items ?? [])
       .map((item) => {
         const product = item.product?.name ?? 'Item';
-        const brand = item.cement_brand?.brand_name ? ` (${item.cement_brand.brand_name})` : '';
+        const brand = item.cement_brand?.brand_name
+          ? ` (${item.cement_brand.brand_name})`
+          : '';
         return `${product}${brand} x${item.quantity} ${item.unit}`;
       })
       .join(', ');
@@ -92,7 +96,9 @@ export class CustomerLedgerService {
     return match ? Number(match[1]) : null;
   }
 
-  private findCustomerAdvances(customer: Pick<Customer, 'id' | 'name' | 'phone'>) {
+  private findCustomerAdvances(
+    customer: Pick<Customer, 'id' | 'name' | 'phone'>,
+  ) {
     const qb = this.advancePaymentsRepo
       .createQueryBuilder('ap')
       .leftJoinAndSelect('ap.items', 'items')
@@ -122,7 +128,9 @@ export class CustomerLedgerService {
 
     const results = await Promise.all(
       customers.map(async (customer) => {
-        const ledger = await this.ledgerRepo.findOne({ where: { customer_id: customer.id } });
+        const ledger = await this.ledgerRepo.findOne({
+          where: { customer_id: customer.id },
+        });
 
         // Overdue installment summary
         const overdueDues = await this.duesRepo
@@ -132,7 +140,10 @@ export class CustomerLedgerService {
           .andWhere("d.status = 'overdue'")
           .getMany();
 
-        const overdueAmount = overdueDues.reduce((s, d) => s + (d.due_amount - d.paid_amount), 0);
+        const overdueAmount = overdueDues.reduce(
+          (s, d) => s + (d.due_amount - d.paid_amount),
+          0,
+        );
 
         // Next due
         const nextDue = await this.duesRepo
@@ -155,7 +166,9 @@ export class CustomerLedgerService {
           `SELECT COALESCE(SUM(amount - paid_amount), 0) as total_pending FROM customer_manual_credits WHERE customer_id = ?`,
           [customer.id],
         );
-        const manualCreditPending = Number(manualCreditPendingRes[0]?.total_pending ?? 0);
+        const manualCreditPending = Number(
+          manualCreditPendingRes[0]?.total_pending ?? 0,
+        );
 
         const advancePayments = await this.findCustomerAdvances(customer);
         const pickupSales = await this.dataSource.query(
@@ -172,13 +185,24 @@ export class CustomerLedgerService {
           if (!advanceId) return;
           pickupPaidByAdvance.set(
             advanceId,
-            (pickupPaidByAdvance.get(advanceId) ?? 0) + Number(sale.paid_amount || 0),
+            (pickupPaidByAdvance.get(advanceId) ?? 0) +
+              Number(sale.paid_amount || 0),
           );
         });
-        const advanceCreditNotInSales = advancePayments.reduce((sum, advance) => {
-          const alreadyShownAsSalePaid = pickupPaidByAdvance.get(advance.id) ?? 0;
-          return sum + Math.max(0, Number(advance.paid_amount || 0) - alreadyShownAsSalePaid);
-        }, 0);
+        const advanceCreditNotInSales = advancePayments.reduce(
+          (sum, advance) => {
+            const alreadyShownAsSalePaid =
+              pickupPaidByAdvance.get(advance.id) ?? 0;
+            return (
+              sum +
+              Math.max(
+                0,
+                Number(advance.paid_amount || 0) - alreadyShownAsSalePaid,
+              )
+            );
+          },
+          0,
+        );
 
         // Last purchase / payment dates from sales
         const lastSale = await this.dataSource.query(
@@ -204,13 +228,18 @@ export class CustomerLedgerService {
         };
 
         const ledgerBalance = Number(custLedger.remaining_balance ?? 0);
-        const displayTotalPaid = Number(custLedger.total_paid ?? 0) + advanceCreditNotInSales;
+        const displayTotalPaid =
+          Number(custLedger.total_paid ?? 0) + advanceCreditNotInSales;
         const effectiveBalance = Math.max(
           ledgerBalance,
           salesPending + manualCreditPending - advanceCreditNotInSales,
         );
         const effectiveStatus =
-          overdueAmount > 0 ? 'overdue' : (effectiveBalance > 0 ? 'active' : 'clear');
+          overdueAmount > 0
+            ? 'overdue'
+            : effectiveBalance > 0
+              ? 'active'
+              : 'clear';
 
         return {
           id: customer.id,
@@ -229,11 +258,11 @@ export class CustomerLedgerService {
           overdue_installments: overdueDues.length,
           last_purchase_date: lastSale[0]?.last_date ?? null,
           last_payment_date:
-            lastInstPayment?.payment_date ??
-            lastPayment[0]?.last_date ??
-            null,
+            lastInstPayment?.payment_date ?? lastPayment[0]?.last_date ?? null,
           next_due_date: nextDue?.due_date ?? null,
-          next_due_amount: nextDue ? nextDue.due_amount - nextDue.paid_amount : null,
+          next_due_amount: nextDue
+            ? nextDue.due_amount - nextDue.paid_amount
+            : null,
           status: effectiveStatus,
           created_at: customer.created_at,
           // New fields
@@ -246,9 +275,12 @@ export class CustomerLedgerService {
     );
 
     let filtered = results;
-    if (type !== 'all') filtered = filtered.filter((r) => r.customer_type === type);
-    if (status === 'overdue') filtered = filtered.filter((r) => r.status === 'overdue');
-    else if (status === 'active') filtered = filtered.filter((r) => r.status === 'active');
+    if (type !== 'all')
+      filtered = filtered.filter((r) => r.customer_type === type);
+    if (status === 'overdue')
+      filtered = filtered.filter((r) => r.status === 'overdue');
+    else if (status === 'active')
+      filtered = filtered.filter((r) => r.status === 'active');
 
     return filtered;
   }
@@ -288,14 +320,17 @@ export class CustomerLedgerService {
     );
 
     // Group by customer, aggregate total pending per customer
-    const customerMap = new Map<number, {
-      customer_id: number;
-      customer_name: string;
-      customer_phone: string;
-      customer_address: string;
-      total_pending: number;
-      sales: any[];
-    }>();
+    const customerMap = new Map<
+      number,
+      {
+        customer_id: number;
+        customer_name: string;
+        customer_phone: string;
+        customer_address: string;
+        total_pending: number;
+        sales: any[];
+      }
+    >();
 
     for (const row of rows) {
       if (!customerMap.has(row.customer_id)) {
@@ -323,14 +358,17 @@ export class CustomerLedgerService {
     }
 
     // Sort customers by highest total_pending first
-    return Array.from(customerMap.values())
-      .sort((a, b) => b.total_pending - a.total_pending);
+    return Array.from(customerMap.values()).sort(
+      (a, b) => b.total_pending - a.total_pending,
+    );
   }
 
   // ─── CUSTOMER DETAIL ──────────────────────────────────────────────────────
 
   async getCustomerDetail(customerId: number) {
-    const customer = await this.customersRepo.findOne({ where: { id: customerId } });
+    const customer = await this.customersRepo.findOne({
+      where: { id: customerId },
+    });
     if (!customer) throw new NotFoundException('Customer not found');
 
     const ledger = await this.getOrCreateLedger(customerId);
@@ -342,7 +380,9 @@ export class CustomerLedgerService {
       order: { created_at: 'DESC' },
     });
     plans.forEach((p) =>
-      p.installment_dues.sort((a, b) => a.installment_number - b.installment_number),
+      p.installment_dues.sort(
+        (a, b) => a.installment_number - b.installment_number,
+      ),
     );
 
     // Payment history
@@ -378,7 +418,10 @@ export class CustomerLedgerService {
     });
 
     // ── Compute paid distribution for manual credits directly from mc.paid_amount ──
-    const salesPaid = sales.reduce((sum: number, s: any) => sum + Number(s.paid_amount || 0), 0);
+    const salesPaid = sales.reduce(
+      (sum: number, s: any) => sum + Number(s.paid_amount || 0),
+      0,
+    );
     const manualTotal = manualCredits.reduce((sum, mc) => sum + mc.amount, 0);
 
     // Merge sales + manual credits into one purchase history, sorted by date desc
@@ -408,7 +451,12 @@ export class CustomerLedgerService {
           total_amount: mc.amount,
           paid_amount: mc.paid_amount,
           pending_amount: pendingAmt,
-          status: pendingAmt <= 0 ? 'paid' : mc.paid_amount > 0 ? 'partial' : 'pending',
+          status:
+            pendingAmt <= 0
+              ? 'paid'
+              : mc.paid_amount > 0
+                ? 'partial'
+                : 'pending',
           items_summary: mc.item_description,
           notes: mc.notes,
           source: 'manual',
@@ -424,12 +472,24 @@ export class CustomerLedgerService {
       .andWhere("d.status = 'overdue'")
       .getMany();
 
-    const overdueAmount = overdueDues.reduce((s, d) => s + (d.due_amount - d.paid_amount), 0);
+    const overdueAmount = overdueDues.reduce(
+      (s, d) => s + (d.due_amount - d.paid_amount),
+      0,
+    );
 
     // ── Live summary computed from actual sales + manual credits ──────────────
-    const salesTotal = sales.reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0);
-    const salesPending = sales.reduce((sum: number, s: any) => sum + Number(s.pending_amount || 0), 0);
-    const manualPaymentsApplied = manualCredits.reduce((sum, mc) => sum + mc.paid_amount, 0);
+    const salesTotal = sales.reduce(
+      (sum: number, s: any) => sum + Number(s.total_amount || 0),
+      0,
+    );
+    const salesPending = sales.reduce(
+      (sum: number, s: any) => sum + Number(s.pending_amount || 0),
+      0,
+    );
+    const manualPaymentsApplied = manualCredits.reduce(
+      (sum, mc) => sum + mc.paid_amount,
+      0,
+    );
     const pickupPaidByAdvance = new Map<number, number>();
     sales.forEach((s: any) => {
       const advanceId = this.advanceSaleIdFromNotes(s.notes);
@@ -441,11 +501,18 @@ export class CustomerLedgerService {
     });
     const advanceCreditNotInSales = advancePayments.reduce((sum, advance) => {
       const alreadyShownAsSalePaid = pickupPaidByAdvance.get(advance.id) ?? 0;
-      return sum + Math.max(0, Number(advance.paid_amount || 0) - alreadyShownAsSalePaid);
+      return (
+        sum +
+        Math.max(0, Number(advance.paid_amount || 0) - alreadyShownAsSalePaid)
+      );
     }, 0);
     const totalPurchased = salesTotal + manualTotal;
-    const totalPaid = salesPaid + manualPaymentsApplied + advanceCreditNotInSales;
-    const remainingBalance = salesPending + (manualTotal - manualPaymentsApplied) - advanceCreditNotInSales;
+    const totalPaid =
+      salesPaid + manualPaymentsApplied + advanceCreditNotInSales;
+    const remainingBalance =
+      salesPending +
+      (manualTotal - manualPaymentsApplied) -
+      advanceCreditNotInSales;
 
     return {
       customer: {
@@ -478,7 +545,8 @@ export class CustomerLedgerService {
           amount: p.amount_paid,
           amount_paid: p.amount_paid,
           discount_amount: p.discount_amount || 0,
-          total_credit: Number(p.amount_paid || 0) + Number(p.discount_amount || 0),
+          total_credit:
+            Number(p.amount_paid || 0) + Number(p.discount_amount || 0),
           payment_date: p.payment_date,
           payment_method: 'cash',
           notes: p.notes,
@@ -506,9 +574,16 @@ export class CustomerLedgerService {
 
   async addManualCredit(
     customerId: number,
-    body: { item_description: string; amount: number; credit_date: string; notes?: string },
+    body: {
+      item_description: string;
+      amount: number;
+      credit_date: string;
+      notes?: string;
+    },
   ) {
-    const customer = await this.customersRepo.findOne({ where: { id: customerId } });
+    const customer = await this.customersRepo.findOne({
+      where: { id: customerId },
+    });
     if (!customer) throw new NotFoundException('Customer not found');
 
     const record = this.manualCreditsRepo.create({
@@ -523,7 +598,10 @@ export class CustomerLedgerService {
     // Bump ledger balance
     const ledger = await this.getOrCreateLedger(customerId);
     ledger.total_purchased += body.amount;
-    ledger.remaining_balance = Math.max(0, ledger.total_purchased - ledger.total_paid);
+    ledger.remaining_balance = Math.max(
+      0,
+      ledger.total_purchased - ledger.total_paid,
+    );
     await this.ledgerRepo.save(ledger);
 
     return { success: true, id: record.id };
@@ -532,7 +610,12 @@ export class CustomerLedgerService {
   async updateManualCredit(
     customerId: number,
     creditId: number,
-    body: { item_description: string; amount: number; credit_date: string; notes?: string },
+    body: {
+      item_description: string;
+      amount: number;
+      credit_date: string;
+      notes?: string;
+    },
   ) {
     const record = await this.manualCreditsRepo.findOne({
       where: { id: creditId, customer_id: customerId },
@@ -569,11 +652,14 @@ export class CustomerLedgerService {
       notes?: string;
     },
   ) {
-    const customer = await this.customersRepo.findOne({ where: { id: customerId } });
+    const customer = await this.customersRepo.findOne({
+      where: { id: customerId },
+    });
     if (!customer) throw new NotFoundException('Customer not found');
 
     const remaining = body.total_amount - (body.down_payment ?? 0);
-    if (remaining <= 0) throw new BadRequestException('Remaining amount must be > 0');
+    if (remaining <= 0)
+      throw new BadRequestException('Remaining amount must be > 0');
 
     const installmentAmount = remaining / body.number_of_installments;
 
@@ -615,7 +701,10 @@ export class CustomerLedgerService {
     ledger.customer_type = 'installment';
     ledger.total_purchased += body.total_amount;
     ledger.total_paid += body.down_payment ?? 0;
-    ledger.remaining_balance = Math.max(0, ledger.total_purchased - ledger.total_paid);
+    ledger.remaining_balance = Math.max(
+      0,
+      ledger.total_purchased - ledger.total_paid,
+    );
     await this.ledgerRepo.save(ledger);
 
     return this.plansRepo.findOne({
@@ -640,7 +729,9 @@ export class CustomerLedgerService {
       notes?: string;
     },
   ) {
-    const customer = await this.customersRepo.findOne({ where: { id: customerId } });
+    const customer = await this.customersRepo.findOne({
+      where: { id: customerId },
+    });
     if (!customer) throw new NotFoundException('Customer not found');
 
     const amountCollected = Number(body.amount || 0);
@@ -659,13 +750,17 @@ export class CustomerLedgerService {
     payment.installment_plan_id = body.installment_plan_id ?? null!;
     payment.cheque_number = body.cheque_number ?? null!;
     payment.bank_name = body.bank_name ?? null!;
-    payment.notes = body.notes ?? (discountAmount > 0 ? `Discount: Rs ${discountAmount}` : null!);
+    payment.notes =
+      body.notes ??
+      (discountAmount > 0 ? `Discount: Rs ${discountAmount}` : null!);
     payment.status = 'confirmed';
     await this.paymentsRepo.save(payment);
 
     // Apply to specific due if given
     if (body.installment_due_id) {
-      const due = await this.duesRepo.findOne({ where: { id: body.installment_due_id } });
+      const due = await this.duesRepo.findOne({
+        where: { id: body.installment_due_id },
+      });
       if (due) {
         const dueOwed = due.due_amount - due.paid_amount;
         const applied = Math.min(remaining, dueOwed);
@@ -675,8 +770,8 @@ export class CustomerLedgerService {
           due.paid_amount >= due.due_amount
             ? 'paid'
             : due.paid_amount > 0
-            ? 'partial'
-            : due.status;
+              ? 'partial'
+              : due.status;
         await this.duesRepo.save(due);
         remaining -= applied;
 
@@ -721,7 +816,11 @@ export class CustomerLedgerService {
       }
     } else if (body.installment_plan_id) {
       // General payment toward a plan — apply to oldest pending due
-      await this.applyPaymentToPlan(body.installment_plan_id, remaining, body.payment_date);
+      await this.applyPaymentToPlan(
+        body.installment_plan_id,
+        remaining,
+        body.payment_date,
+      );
       await this.recalculatePlan(body.installment_plan_id);
     } else {
       // General payment (no plan, no due) — apply to pending sales oldest-first,
@@ -741,8 +840,8 @@ export class CustomerLedgerService {
           sale.pending_amount === 0
             ? SaleStatus.PAID
             : sale.paid_amount > 0
-            ? SaleStatus.PARTIAL
-            : SaleStatus.PENDING;
+              ? SaleStatus.PARTIAL
+              : SaleStatus.PENDING;
         await this.salesRepo.save(sale);
         saleRemaining -= apply;
       }
@@ -767,7 +866,10 @@ export class CustomerLedgerService {
     // Update ledger totals
     const ledger = await this.getOrCreateLedger(customerId);
     ledger.total_paid += settlementAmount;
-    ledger.remaining_balance = Math.max(0, ledger.total_purchased - ledger.total_paid);
+    ledger.remaining_balance = Math.max(
+      0,
+      ledger.total_purchased - ledger.total_paid,
+    );
     await this.ledgerRepo.save(ledger);
 
     return { success: true, payment_id: payment.id };
@@ -808,7 +910,9 @@ export class CustomerLedgerService {
     plan.paid_amount = totalPaid;
     plan.remaining_amount = Math.max(0, plan.total_amount - totalPaid);
     const allPaid = plan.installment_dues.every((d) => d.status === 'paid');
-    const anyOverdue = plan.installment_dues.some((d) => d.status === 'overdue');
+    const anyOverdue = plan.installment_dues.some(
+      (d) => d.status === 'overdue',
+    );
     if (plan.remaining_amount <= 0 || allPaid) plan.status = 'completed';
     else if (anyOverdue) plan.status = 'overdue';
     else plan.status = 'active';
@@ -819,9 +923,15 @@ export class CustomerLedgerService {
 
   async setCustomerType(
     customerId: number,
-    body: { customer_type: string; credit_limit: number; payment_term_days: number },
+    body: {
+      customer_type: string;
+      credit_limit: number;
+      payment_term_days: number;
+    },
   ) {
-    const customer = await this.customersRepo.findOne({ where: { id: customerId } });
+    const customer = await this.customersRepo.findOne({
+      where: { id: customerId },
+    });
     if (!customer) throw new NotFoundException('Customer not found');
     const ledger = await this.getOrCreateLedger(customerId);
     ledger.customer_type = body.customer_type;
@@ -861,15 +971,27 @@ export class CustomerLedgerService {
 
     const results = await Promise.all(
       customers.map(async (customer) => {
-        const sales = await this.salesRepo.find({ where: { customer_id: customer.id } });
+        const sales = await this.salesRepo.find({
+          where: { customer_id: customer.id },
+        });
         if (sales.length === 0) return null;
 
-        const totalBilled = sales.reduce((s, r) => s + Number(r.total_amount), 0);
-        const totalCollected = sales.reduce((s, r) => s + Number(r.paid_amount), 0);
+        const totalBilled = sales.reduce(
+          (s, r) => s + Number(r.total_amount),
+          0,
+        );
+        const totalCollected = sales.reduce(
+          (s, r) => s + Number(r.paid_amount),
+          0,
+        );
         const balance = sales.reduce((s, r) => s + Number(r.pending_amount), 0);
 
         return {
-          customer: { id: customer.id, name: customer.name, phone: customer.phone },
+          customer: {
+            id: customer.id,
+            name: customer.name,
+            phone: customer.phone,
+          },
           totalBilled,
           totalCollected,
           balance,
@@ -883,13 +1005,20 @@ export class CustomerLedgerService {
   // ─── SALES-BASED INDIVIDUAL LEDGER (like mill-payments/ledger/:id) ─────────
 
   async getCustomerSalesLedger(customerId: number) {
-    const customer = await this.customersRepo.findOne({ where: { id: customerId } });
+    const customer = await this.customersRepo.findOne({
+      where: { id: customerId },
+    });
     if (!customer) throw new NotFoundException('Customer not found');
 
     // Fetch all sales with item summaries
     const salesRows: Array<{
-      id: number; date: string; total_amount: number; paid_amount: number;
-      pending_amount: number; status: string; items_summary: string;
+      id: number;
+      date: string;
+      total_amount: number;
+      paid_amount: number;
+      pending_amount: number;
+      status: string;
+      items_summary: string;
     }> = await this.dataSource.query(
       `SELECT s.id, s.date, s.total_amount, s.paid_amount, s.pending_amount, s.status,
               group_concat(
@@ -915,9 +1044,14 @@ export class CustomerLedgerService {
     });
 
     type RawEntry = {
-      id: string; date: Date; type: 'sale' | 'payment';
-      description: string; debit: number; credit: number;
-      sale_id?: number; payment_status?: string;
+      id: string;
+      date: Date;
+      type: 'sale' | 'payment';
+      description: string;
+      debit: number;
+      credit: number;
+      sale_id?: number;
+      payment_status?: string;
     };
 
     const raw: RawEntry[] = [
@@ -935,7 +1069,11 @@ export class CustomerLedgerService {
         id: `pay-${p.id}`,
         date: new Date(p.payment_date),
         type: 'payment' as const,
-        description: p.notes || (Number(p.discount_amount || 0) > 0 ? 'Payment received + discount' : 'Payment received'),
+        description:
+          p.notes ||
+          (Number(p.discount_amount || 0) > 0
+            ? 'Payment received + discount'
+            : 'Payment received'),
         debit: 0,
         credit: Number(p.amount_paid) + Number(p.discount_amount || 0),
       })),
@@ -955,11 +1093,19 @@ export class CustomerLedgerService {
       return { ...e, balance: running };
     });
 
-    const totalDebit = salesRows.reduce((s, r) => s + Number(r.total_amount), 0);
-    const totalCredit = payments.reduce((s, r) => s + Number(r.amount_paid) + Number(r.discount_amount || 0), 0);
+    const totalDebit = salesRows.reduce(
+      (s, r) => s + Number(r.total_amount),
+      0,
+    );
+    const totalCredit = payments.reduce(
+      (s, r) => s + Number(r.amount_paid) + Number(r.discount_amount || 0),
+      0,
+    );
 
     // Sales summary table (sorted by date desc)
-    const salesSummary = [...salesRows].sort((a, b) => (a.date < b.date ? 1 : -1));
+    const salesSummary = [...salesRows].sort((a, b) =>
+      a.date < b.date ? 1 : -1,
+    );
 
     return {
       customer,

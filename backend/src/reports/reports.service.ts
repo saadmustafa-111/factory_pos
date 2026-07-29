@@ -54,7 +54,15 @@ export class ReportsService {
     // Use local calendar date (not UTC) for DATE() comparisons in SQLite
     const todayLocalStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-    const [todaySales, monthSales, allSales, todayStockRow, todayMillRow, todayExpenseRow, todayExpenseCats] = await Promise.all([
+    const [
+      todaySales,
+      monthSales,
+      allSales,
+      todayStockRow,
+      todayMillRow,
+      todayExpenseRow,
+      todayExpenseCats,
+    ] = await Promise.all([
       this.salesRepo
         .createQueryBuilder('sale')
         .select('COALESCE(SUM(sale.total_amount), 0)', 'total')
@@ -70,13 +78,19 @@ export class ReportsService {
       this.inventoryRepo
         .createQueryBuilder('inv')
         .select('COALESCE(SUM(inv.total_cost), 0)', 'total')
-        .where('inv.date >= :todayStart AND inv.date <= :todayEnd', { todayStart, todayEnd })
+        .where('inv.date >= :todayStart AND inv.date <= :todayEnd', {
+          todayStart,
+          todayEnd,
+        })
         .getRawOne<{ total: string }>(),
       // Today's mill payments actually sent out
       this.millPaymentRepo
         .createQueryBuilder('mp')
         .select('COALESCE(SUM(mp.amount_paid), 0)', 'total')
-        .where('mp.payment_date >= :todayStart AND mp.payment_date <= :todayEnd', { todayStart, todayEnd })
+        .where(
+          'mp.payment_date >= :todayStart AND mp.payment_date <= :todayEnd',
+          { todayStart, todayEnd },
+        )
         .getRawOne<{ total: string }>(),
       // Today's manual expenses (transport, labour, etc.)
       this.expenseRepo
@@ -94,14 +108,20 @@ export class ReportsService {
         .getRawMany<{ category: string; total: string }>(),
     ]);
 
-    const totalPending = allSales.reduce((sum, sale) => sum + sale.pending_amount, 0);
+    const totalPending = allSales.reduce(
+      (sum, sale) => sum + sale.pending_amount,
+      0,
+    );
     const overdueSales = allSales.filter((sale) => sale.is_overdue);
     const weekEnd = new Date();
     weekEnd.setDate(weekEnd.getDate() + 7);
     const dueThisWeek = allSales.filter(
-      (sale) => !!sale.due_date && sale.due_date >= now && sale.due_date <= weekEnd,
+      (sale) =>
+        !!sale.due_date && sale.due_date >= now && sale.due_date <= weekEnd,
     );
-    const suppliers = await this.suppliersRepo.find({ relations: ['inventoryEntries'] });
+    const suppliers = await this.suppliersRepo.find({
+      relations: ['inventoryEntries'],
+    });
     const millDues = suppliers.reduce(
       (sum, supplier) =>
         sum +
@@ -119,7 +139,7 @@ export class ReportsService {
     const todayMillPaid = Number(todayMillRow?.total ?? 0);
     const todayManualExpenses = Number(todayExpenseRow?.total ?? 0);
     const todayExpenseBreakdown: Record<string, number> = {};
-    for (const row of (todayExpenseCats ?? [])) {
+    for (const row of todayExpenseCats ?? []) {
       todayExpenseBreakdown[row.category] = Number(row.total);
     }
     const todayExpenses = todayStockCost + todayMillPaid + todayManualExpenses;
@@ -141,7 +161,9 @@ export class ReportsService {
       overdueSales,
       dueThisWeek,
       stockSummary: stock,
-      recentSales: allSales.sort((a, b) => +new Date(b.date) - +new Date(a.date)).slice(0, 5),
+      recentSales: allSales
+        .sort((a, b) => +new Date(b.date) - +new Date(a.date))
+        .slice(0, 5),
     };
   }
 
@@ -156,7 +178,12 @@ export class ReportsService {
       .groupBy('inventory.product_id')
       .addGroupBy('product.name')
       .addGroupBy('product.unit')
-      .getRawMany<{ product_id: number; name: string; unit: string; received: string }>();
+      .getRawMany<{
+        product_id: number;
+        name: string;
+        unit: string;
+        received: string;
+      }>();
 
     const soldRows = await this.saleItemsRepo
       .createQueryBuilder('sale_item')
@@ -212,7 +239,15 @@ export class ReportsService {
 
     const byProduct = new Map<
       number,
-      { product: string; quantity: number; gross_sales: number; discount: number; sales: number; cost: number; profit: number }
+      {
+        product: string;
+        quantity: number;
+        gross_sales: number;
+        discount: number;
+        sales: number;
+        cost: number;
+        profit: number;
+      }
     >();
 
     items.forEach((item) => {
@@ -230,7 +265,8 @@ export class ReportsService {
       // Distribute sale-level discount proportionally to this item
       const saleDiscount = item.sale?.discount ?? 0;
       const saleSubtotal = saleSubtotals.get(item.sale_id) ?? 0;
-      const itemDiscount = saleSubtotal > 0 ? saleDiscount * (item.total_price / saleSubtotal) : 0;
+      const itemDiscount =
+        saleSubtotal > 0 ? saleDiscount * (item.total_price / saleSubtotal) : 0;
       const netSales = item.total_price - itemDiscount;
 
       const avgCost = avgCostMap.get(productId) ?? 0;

@@ -7,7 +7,7 @@ import * as https from 'https';
 
 const FOLDER_NAME = 'Factory POS Backups';
 const TOKEN_FILENAME = 'gdrive-token.json';
-const REDIRECT_PORT = 3001; // same as NestJS backend port
+const REDIRECT_PORT = 6101; // same as NestJS backend port
 const REDIRECT_URI = `http://localhost:${REDIRECT_PORT}/backup/oauth-callback`;
 
 interface StoredToken {
@@ -72,7 +72,7 @@ export class GoogleDriveService implements OnModuleInit {
 
   async isConnected(): Promise<boolean> {
     const token = this.loadToken();
-    return !!(token?.refresh_token);
+    return !!token?.refresh_token;
   }
 
   disconnectGoogle(): void {
@@ -80,7 +80,9 @@ export class GoogleDriveService implements OnModuleInit {
       if (fs.existsSync(this.tokenPath)) {
         fs.unlinkSync(this.tokenPath);
       }
-      this.oauth2Client.revokeCredentials().catch(() => {/* best effort */});
+      this.oauth2Client.revokeCredentials().catch(() => {
+        /* best effort */
+      });
     } catch (err) {
       this.logger.warn('Failed to disconnect Google Drive', err);
     }
@@ -175,12 +177,19 @@ export class GoogleDriveService implements OnModuleInit {
 
   private checkInternetConnectivity(): Promise<boolean> {
     return new Promise((resolve) => {
-      const req = https.get('https://www.google.com', { timeout: 5000 }, (res) => {
-        resolve(res.statusCode !== undefined && res.statusCode < 500);
-        res.resume();
-      });
+      const req = https.get(
+        'https://www.google.com',
+        { timeout: 5000 },
+        (res) => {
+          resolve(res.statusCode !== undefined && res.statusCode < 500);
+          res.resume();
+        },
+      );
       req.on('error', () => resolve(false));
-      req.on('timeout', () => { req.destroy(); resolve(false); });
+      req.on('timeout', () => {
+        req.destroy();
+        resolve(false);
+      });
     });
   }
 
@@ -189,7 +198,9 @@ export class GoogleDriveService implements OnModuleInit {
   private loadToken(): StoredToken | null {
     try {
       if (fs.existsSync(this.tokenPath)) {
-        return JSON.parse(fs.readFileSync(this.tokenPath, 'utf-8')) as StoredToken;
+        return JSON.parse(
+          fs.readFileSync(this.tokenPath, 'utf-8'),
+        ) as StoredToken;
       }
     } catch {
       /* ignore */
