@@ -7,14 +7,22 @@ const cacheDir = path.join(rootDir, '.cache');
 const electronGypDir = path.join(cacheDir, 'electron-gyp');
 const electronCacheDir = path.join(cacheDir, 'electron');
 const homeDir = path.join(cacheDir, 'home');
+const cliPath = path.join(
+  rootDir,
+  'node_modules',
+  '@electron',
+  'rebuild',
+  'lib',
+  'cli.js',
+);
 
 await mkdir(electronGypDir, { recursive: true });
 await mkdir(electronCacheDir, { recursive: true });
 await mkdir(homeDir, { recursive: true });
 
 const child = spawn(
-  process.platform === 'win32' ? 'npx.cmd' : 'npx',
-  ['electron-rebuild', '--force', '--sequential', '--module-dir', 'backend'],
+  process.execPath,
+  [cliPath, '--force', '--sequential', '--module-dir', 'backend'],
   {
     cwd: rootDir,
     stdio: 'inherit',
