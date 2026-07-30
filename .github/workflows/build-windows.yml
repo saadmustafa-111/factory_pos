@@ -57,15 +57,16 @@ jobs:
 
       # ── Electron ──────────────────────────────────────────────────────────
       - name: Generate Google Drive credentials file
-        shell: bash
+        shell: pwsh
         run: |
-          cat > electron/gdrive-credentials.ts <<'EOF'
+          @"
           export const GDRIVE_CLIENT_ID = '${{ secrets.GDRIVE_CLIENT_ID }}';
           export const GDRIVE_CLIENT_SECRET = '${{ secrets.GDRIVE_CLIENT_SECRET }}';
-          EOF
+          "@ | Set-Content -Path "electron/gdrive-credentials.ts"
 
       - name: Compile Electron TypeScript
         shell: cmd
+        timeout-minutes: 10
         run: npx tsc --project electron/tsconfig.json
 
       # Rebuild native modules (sqlite3) for the Electron Node.js version
@@ -73,6 +74,8 @@ jobs:
         shell: cmd
         timeout-minutes: 15
         run: npm run rebuild:native
+        env:
+          DEBUG: electron-rebuild*
 
       # ── Package ───────────────────────────────────────────────────────────
       - name: Build Windows installer
@@ -81,6 +84,7 @@ jobs:
         run: npx electron-builder --win --x64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEBUG: electron-builder
 
       # ── Upload artifact ───────────────────────────────────────────────────
       - name: Upload Windows installer as artifact
