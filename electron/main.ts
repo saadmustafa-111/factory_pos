@@ -134,6 +134,7 @@ async function startBackend() {
 
 async function waitForBackend(maxWaitMs = 15000): Promise<boolean> {
   const start = Date.now();
+  let delayMs = 75;
   while (Date.now() - start < maxWaitMs) {
     try {
       const res = await net.fetch('http://127.0.0.1:6101/health');
@@ -144,7 +145,8 @@ async function waitForBackend(maxWaitMs = 15000): Promise<boolean> {
     } catch {
       // backend not ready yet — keep retrying
     }
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, delayMs));
+    delayMs = Math.min(400, delayMs + 50);
   }
   log(`[Backend] Did not respond within ${maxWaitMs}ms`);
   return false;
