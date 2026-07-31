@@ -81,9 +81,11 @@ export default function MillLedger() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'ledger' | 'products'>('ledger');
   const [sortBy, setSortBy] = useState<'name' | 'balance' | 'purchased'>('balance');
-  const [payModal, setPayModal] = useState<{ inv_id: number; supplier_id: number; max: number; description: string } | null>(null);
+  const [payModal, setPayModal] = useState<{ supplier_id: number; max: number; description: string; general?: boolean } | null>(null);
   const [payAmount, setPayAmount] = useState('');
   const [payDate, setPayDate] = useState(todayInputValue());
+  const [payMethod, setPayMethod] = useState('cash');
+  const [payNotes, setPayNotes] = useState('');
   const [paying, setPaying] = useState(false);
   const [adjModal, setAdjModal] = useState<{ supplier_id: number; name: string; mode?: 'adjust' | 'correction' | 'edit'; editType?: 'opening' | 'manual_payment' | 'mill_payment' | 'stock_in_payment'; editId?: number } | null>(null);
   const [adjForm, setAdjForm] = useState({ type: 'debit' as 'debit' | 'credit', description: '', amount: '', date: todayInputValue() });
@@ -164,17 +166,37 @@ export default function MillLedger() {
 
   const submitPayment = async () => {
     if (!payModal || !payAmount || !payDate) return;
+    const amountNum = Number(payAmount) || 0;
+    if (amountNum <= 0) return;
     setPaying(true);
     try {
-      await api.post('/mill-payments', {
-        supplier_id: payModal.supplier_id,
-        inventory_id: payModal.inv_id,
-        amount_paid: Number(payAmount),
+      const methodLabel =
+        payMethod === 'cash'
+          ? 'Cash'
+          : payMethod === 'bank_transfer'
+          ? 'Bank Transfer'
+          : payMethod === 'cheque'
+          ? 'Cheque'
+          : payMethod === 'jazzcash'
+          ? 'JazzCash'
+          : payMethod === 'easypaisa'
+          ? 'Easypaisa'
+          : 'Other';
+      const noteText = payNotes.trim();
+      const description = noteText
+        ? `Payment via ${methodLabel} - ${noteText}`
+        : `Payment via ${methodLabel}`;
+
+      await api.post(`/mill-payments/${payModal.supplier_id}/manual-payment`, {
+        description,
+        amount: amountNum,
         payment_date: payDate,
       });
       setPayModal(null);
       setPayAmount('');
       setPayDate(todayInputValue());
+      setPayMethod('cash');
+      setPayNotes('');
       await loadSummary();
       await loadLedger(payModal.supplier_id);
     } finally {
@@ -505,6 +527,26 @@ export default function MillLedger() {
 
                 {/* Stat pills */}
                 <div className="flex items-center gap-3 shrink-0">
+                  {ledger.balance > 0 && (
+                    <button
+                      onClick={() => {
+                        setPayModal({
+                          supplier_id: ledger.supplier.id,
+                          max: ledger.balance,
+                          description: `Settle balance for ${ledger.supplier.name}`,
+                          general: true,
+                        });
+                        setPayAmount(String(ledger.balance));
+                        setPayDate(todayInputValue());
+                        setPayMethod('cash');
+                        setPayNotes('');
+                      }}
+                      className="flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
+                    >
+                      <CreditCard className="h-4 w-4" />
+                      Pay Dealer
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       setAdjModal({ supplier_id: ledger.supplier.id, name: ledger.supplier.name, mode: 'correction' });
@@ -738,24 +780,6 @@ export default function MillLedger() {
                           </td>
                           <td className="px-5 py-3.5">
                             <div className="flex items-center justify-end gap-1.5">
-                              {isPurchase && entry.payment_status !== 'paid' && entry.inventory_id && (
-                                <button
-                                  onClick={() => {
-                                    const pending = entry.balance > 0 ? entry.debit : 0;
-                                    setPayModal({
-                                      inv_id: entry.inventory_id!,
-                                      supplier_id: ledger.supplier.id,
-                                      max: pending,
-                                      description: entry.description,
-                                    });
-                                    setPayAmount(String(pending));
-                                    setPayDate(todayInputValue());
-                                  }}
-                                  className="flex items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-green-700 transition-colors"
-                                >
-                                  <CreditCard className="h-3 w-3" /> Pay
-                                </button>
-                              )}
                               {isPurchase && entry.inventory_id && (
                                 <AttachmentManager
                                   entityType="inventory"
@@ -825,6 +849,18 @@ export default function MillLedger() {
                 {localizeApiText(ledger?.supplier.name ?? '', isUrdu)}
               </p>
             </div>
+            <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-green-600">Current Dealer Balance</p>
+                <p className="text-lg font-black text-green-700">{fmtCurrency(payModal.max)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-semibold text-industrial-500">Remaining After Payment</p>
+                <p className="text-sm font-bold text-industrial-800">
+                  {fmtCurrency(Math.max(0, payModal.max - (Number(payAmount) || 0)))}
+                </p>
+              </div>
+            </div>
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-industrial-700">Payment Amount (Rs)</label>
               <Input
@@ -833,6 +869,29 @@ export default function MillLedger() {
                 value={payAmount}
                 onChange={(e) => setPayAmount(e.target.value)}
                 className="text-lg font-bold"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-industrial-700">Payment Method</label>
+              <select
+                className="h-10 w-full rounded-lg border-2 border-industrial-200 bg-white px-3 text-sm font-semibold outline-none focus:border-green-500"
+                value={payMethod}
+                onChange={(e) => setPayMethod(e.target.value)}
+              >
+                <option value="cash">Cash</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="cheque">Cheque</option>
+                <option value="jazzcash">JazzCash</option>
+                <option value="easypaisa">Easypaisa</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-industrial-700">Notes</label>
+              <Input
+                value={payNotes}
+                onChange={(e) => setPayNotes(e.target.value)}
+                placeholder="Optional reference, bank name, transaction id, etc."
               />
             </div>
             <div>
@@ -847,7 +906,7 @@ export default function MillLedger() {
               />
             </div>
             <div className="flex gap-3 pt-2">
-              <Button onClick={submitPayment} disabled={paying || !payAmount || !payDate} className="flex-1">
+              <Button onClick={submitPayment} disabled={paying || !payAmount || !payDate || (Number(payAmount) || 0) <= 0} className="flex-1">
                 {paying ? 'Saving…' : 'Confirm Payment'}
               </Button>
               <Button onClick={() => setPayModal(null)} variant="outline" className="flex-1">

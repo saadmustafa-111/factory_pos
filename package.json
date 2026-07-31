@@ -8,7 +8,7 @@
     "backend:build": "cd backend && npm run build",
     "frontend:dev": "cd frontend && npm run dev",
     "frontend:build": "cd frontend && npm run build",
-    "electron:dev": "wait-on tcp:127.0.0.1:6101 && wait-on http://localhost:5173 && electron .",
+    "electron:dev": "wait-on tcp:127.0.0.1:6101 http://localhost:5173 && electron .",
     "electron:compile": "npx tsc --project electron/tsconfig.json",
     "rebuild:native": "node scripts/rebuild-native.mjs",
     "build:compile": "npm run backend:build && npm run frontend:build && npm run electron:compile && npm run rebuild:native",
