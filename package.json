@@ -3,15 +3,15 @@
   "version": "1.0.0",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\" \"npm run electron:dev\"",
+    "dev": "node init && concurrently \"npm run backend:dev\" \"npm run frontend:dev\" \"npm run electron:dev\"",
     "backend:dev": "cd backend && npm run start:dev",
     "backend:build": "cd backend && npm run build",
     "frontend:dev": "cd frontend && npm run dev",
     "frontend:build": "cd frontend && npm run build",
-    "electron:dev": "wait-on tcp:127.0.0.1:6101 && wait-on http://localhost:5173 && electron .",
+    "electron:dev": "wait-on tcp:127.0.0.1:6101 http://localhost:5173 && electron .",
     "electron:compile": "npx tsc --project electron/tsconfig.json",
     "rebuild:native": "node scripts/rebuild-native.mjs",
-    "build:compile": "npm run backend:build && npm run frontend:build && npm run electron:compile && npm run rebuild:native",
+    "build:compile": "node init && npm run backend:build && npm run frontend:build && npm run electron:compile && npm run rebuild:native",
     "dist:mac": "npm run build:compile && electron-builder --mac",
     "dist:win": "npm run build:compile && electron-builder --win"
   },
@@ -58,12 +58,23 @@
     ],
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ]
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "nsis": {

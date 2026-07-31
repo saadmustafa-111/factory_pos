@@ -89,7 +89,7 @@ export function AppShell() {
       <aside className={`fixed left-0 top-0 z-40 flex h-screen w-64 flex-col industrial-sidebar ${isUrdu ? 'order-last right-0 left-auto' : ''}`}>
         {/* Logo */}
         <div className="flex flex-col gap-3 border-b border-industrial-700 px-4 py-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3">
             {/* Warehouse / dealer shop logo mark */}
             <input ref={logo.inputRef} type="file" accept="image/*" className="hidden" onChange={logo.handleFile} />
             <button
@@ -119,11 +119,11 @@ export function AppShell() {
                 <Camera className="h-5 w-5 text-white" />
               </span>
             </button>
-            <div className="min-w-0 flex-1">
-              <p className={`text-[13.5px] font-black leading-snug tracking-wide text-white ${isUrdu ? 'font-urdu' : ''}`}>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <p className={`max-w-full break-words text-[13px] font-black leading-snug tracking-wide text-white sm:text-[13.5px] ${isUrdu ? 'font-urdu' : ''}`}>
                 Haji Kala Khan Son's
               </p>
-              <p className={`text-[10.5px] font-bold leading-tight tracking-[0.15em] text-amber-400 uppercase mt-0.5 whitespace-nowrap ${isUrdu ? 'font-urdu' : ''}`}>
+              <p className={`mt-0.5 max-w-full break-words text-[10px] font-bold uppercase leading-snug tracking-[0.12em] text-amber-400 sm:text-[10.5px] ${isUrdu ? 'font-urdu' : ''}`}>
                 Cement Steel Dealer
               </p>
             </div>
@@ -145,8 +145,8 @@ export function AppShell() {
                 <Camera className="h-3 w-3 text-white" />
               </span>
             </button>
-            <div className="min-w-0">
-              <p className={`text-[12px] font-bold text-white leading-none ${isUrdu ? 'font-urdu' : ''}`}>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <p className={`max-w-full break-words text-[11.5px] font-bold leading-snug text-white sm:text-[12px] ${isUrdu ? 'font-urdu' : ''}`}>
                 Zakaullah Masood
               </p>
               <p className="text-[10px] text-industrial-400 mt-0.5">Proprietor</p>
